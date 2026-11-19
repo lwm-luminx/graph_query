@@ -51,8 +51,6 @@ Metrics/CyclomaticComplexity:
   Max: 12
 Metrics/PerceivedComplexity:
   Max: 12
-Metrics/AbcSize:
-  Max: 36
 Metrics/ParameterLists:
   Max: 9
 Metrics/BlockLength:
@@ -61,3 +59,10 @@ Metrics/MethodLength:
   Max: 25
   Exclude:
     - spec/**/*
+    - lib/graph_query/graphql.rb
+
+# Mutation classes are built with graphql-ruby's class DSL inside one Class.new block each.
+Metrics/AbcSize:
+  Max: 36
+  Exclude:
+    - lib/graph_query/graphql.rb

@@ -16,6 +16,7 @@ module GraphQuery
   EdgeCondition = T.type_alias { T.any(T::Hash[T.untyped, T.untyped], T.proc.returns(T.untyped)) }
   Names = T.type_alias { T.nilable(T.any(Symbol, T::Array[Symbol])) }
   NodePair = T.type_alias { [String, T.untyped] }
+  ComputedEdge = T.type_alias { T.proc.returns(T.any(ActiveRecord::Relation, String)) }
 
   class StartSet
     sig { returns(String) }
@@ -53,6 +54,9 @@ module GraphQuery
     sig { params(query: String, params: T.untyped).returns(T.any(ActiveRecord::Relation, T::Array[T.untyped], Integer)) }
     def cypher(query, **params); end
 
+    sig { params(block: T.proc.params(graph: Transaction).void).returns(Transaction) }
+    def transaction(&block); end
+
     sig { params(relation: ActiveRecord::Relation).returns(StartSet) }
     def start_set(relation); end
 
@@ -77,15 +81,31 @@ module GraphQuery
         params(
           name: Symbol,
           association: T.nilable(Symbol),
-          to: T.nilable(T.any(String, Symbol)),
-          through: T.nilable(T.any(String, Symbol)),
+          to: T.nilable(ModelRef),
+          through: T.nilable(ModelRef),
           source: T.nilable(T.any(String, Symbol)),
           target: T.nilable(T.any(String, Symbol)),
           sql: T.nilable(String),
-          where: T.nilable(EdgeCondition)
+          where: T.nilable(EdgeCondition),
+          computed: T.nilable(ComputedEdge),
+          block: T.nilable(T.proc.returns(T.any(ActiveRecord::Relation, String)))
         ).void
       end
-      def graph_edge(name, association: nil, to: nil, through: nil, source: nil, target: nil, sql: nil, where: nil); end
+      def graph_edge(name, association: nil, to: nil, through: nil, source: nil, target: nil, sql: nil, where: nil,
+                     computed: nil, &block); end
+
+      sig do
+        params(
+          name: T.nilable(Symbol),
+          arguments: T::Hash[Symbol, T.untyped],
+          returns: T.untyped,
+          description: T.nilable(String)
+        ).returns(T.nilable(Symbol))
+      end
+      def graph_mutation(name = nil, arguments: {}, returns: nil, description: nil); end
+
+      sig { returns(T::Hash[Symbol, Mutation]) }
+      def graph_mutations; end
 
       sig { params(names: Names, options: T.untyped).returns(Query) }
       def traverse(names = nil, **options); end
@@ -240,6 +260,87 @@ module GraphQuery
 
     sig { params(var: Symbol).returns(ActiveRecord::Relation) }
     def nodes(var); end
+  end
+
+  class Transaction
+    class Change < Data
+      sig { returns(Symbol) }
+      def action; end
+
+      sig { returns(T.nilable(Edge)) }
+      def edge; end
+
+      sig { returns(T.nilable(ActiveRecord::Base)) }
+      def from; end
+
+      sig { returns(T.nilable(ActiveRecord::Base)) }
+      def to; end
+
+      sig { returns(T.nilable(ActiveRecord::Base)) }
+      def record; end
+    end
+
+    sig { returns(T::Array[Change]) }
+    def changes; end
+
+    sig do
+      params(from: ActiveRecord::Base, name: Symbol, to: ActiveRecord::Base, via: T.nilable(ModelRef),
+             attributes: T::Hash[Symbol, T.untyped]).returns(T.nilable(ActiveRecord::Base))
+    end
+    def link(from, name, to, via: nil, attributes: {}); end
+
+    sig do
+      params(from: ActiveRecord::Base, name: Symbol, to: ActiveRecord::Base, via: T.nilable(ModelRef))
+        .returns(T.nilable(ActiveRecord::Base))
+    end
+    def unlink(from, name, to, via: nil); end
+
+    sig do
+      params(new_from: ActiveRecord::Base, name: Symbol, to: ActiveRecord::Base, from: T.nilable(ActiveRecord::Base),
+             via: T.nilable(ModelRef), attributes: T::Hash[Symbol, T.untyped]).returns(T.nilable(ActiveRecord::Base))
+    end
+    def relink(new_from, name, to, from:, via: nil, attributes: {}); end
+
+    sig { params(from: ActiveRecord::Base, name: Symbol, to: ActiveRecord::Base, via: T.nilable(ModelRef)).returns(T::Boolean) }
+    def linked?(from, name, to, via: nil); end
+
+    sig { params(model: T.class_of(ActiveRecord::Base), attributes: T.untyped).returns(ActiveRecord::Base) }
+    def create(model, **attributes); end
+
+    sig { params(record: ActiveRecord::Base, attributes: T.untyped).returns(ActiveRecord::Base) }
+    def update(record, **attributes); end
+
+    sig { params(record: ActiveRecord::Base).returns(ActiveRecord::Base) }
+    def destroy(record); end
+  end
+
+  class Mutation
+    sig { returns(T.class_of(ActiveRecord::Base)) }
+    def model; end
+
+    sig { returns(Symbol) }
+    def name; end
+
+    sig { returns(T::Hash[Symbol, T.untyped]) }
+    def arguments; end
+
+    sig { returns(T.untyped) }
+    def returns; end
+
+    sig { returns(T.nilable(String)) }
+    def description; end
+
+    sig { returns(T::Array[Symbol]) }
+    def required; end
+
+    sig { returns(T::Array[Symbol]) }
+    def keywords; end
+
+    sig { returns(T::Boolean) }
+    def takes_graph?; end
+
+    sig { params(record: ActiveRecord::Base, args: T.untyped).returns(T.untyped) }
+    def call(record, **args); end
   end
 
   module Age

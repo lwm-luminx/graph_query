@@ -50,19 +50,35 @@ module GraphQuerySpec
   end
 end
 
+class GqGrouping < ActiveRecord::Base; end
+
 class GqPlace < ActiveRecord::Base
   belongs_to :parent, class_name: 'GqPlace', optional: true
   has_many :children, class_name: 'GqPlace', foreign_key: :parent_id, inverse_of: :parent, dependent: nil
   has_many :gq_venues, dependent: nil
 
   graph_edge :contains, association: :children
-  graph_edge :contains, to: 'GqPlace', through: 'GqGrouping', source: :super_place_id, target: :member_place_id
+  graph_edge :contains, to: GqPlace, through: GqGrouping, source: :super_place_id, target: :member_place_id
   graph_edge :within, association: :parent
   graph_edge :has_venue, association: :gq_venues
   graph_edge :rolls_up, association: :gq_venues
-end
 
-class GqGrouping < ActiveRecord::Base; end
+  graph_mutation arguments: { child: GqPlace }, description: 'Files a place under this one.'
+  def adopt(child:, graph:)
+    graph.link(self, :contains, child, via: 'GqPlace')
+    self
+  end
+
+  graph_mutation def tidy = touch && self
+
+  graph_mutation arguments: { venues: ['GqVenue'], fail: :boolean }, returns: 'GqVenue'
+  def take_venues(venues:, graph:, fail: false)
+    venues.each { graph.link(self, :has_venue, it) }
+    raise GraphQuery::Error, 'asked to fail' if fail
+
+    venues.first
+  end
+end
 
 class GqVenue < ActiveRecord::Base
   belongs_to :gq_place, optional: true
@@ -72,6 +88,10 @@ class GqVenue < ActiveRecord::Base
   graph_edge :hosts, association: :gq_events
   graph_edge :hosts_live, association: :live_events
   graph_edge :rolls_up, association: :gq_events
+  graph_edge(:same_place, to: GqVenue) do
+    GqVenue.joins('JOIN gq_venues other ON other.gq_place_id = gq_venues.gq_place_id AND other.id <> gq_venues.id')
+           .select('gq_venues.id AS source_id, other.id AS target_id')
+  end
 end
 
 class GqEvent < ActiveRecord::Base

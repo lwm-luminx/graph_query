@@ -35,16 +35,20 @@ When there's no association, or you need a different shape, name the table's mod
 
 ```ruby
 class Locale < ApplicationRecord
-  graph_edge :contains, to: 'Locale', through: 'LocaleGrouping',
+  graph_edge :contains, to: Locale, through: LocaleGrouping,
                         source: :super_locale_id, target: :member_locale_id
 end
 ```
 
-- `to:` the model the edge arrives at (a name; the model needn't be loaded yet).
+- `to:` the model the edge arrives at.
 - `through:` the model whose table holds the rows. It can be the target itself:
-  `graph_edge :rolls_up, to: 'EventSeries', through: 'EventSeries', source: :locale_id, target: :id`.
+  `graph_edge :rolls_up, to: EventSeries, through: EventSeries, source: :locale_id, target: :id`.
 - `source:` the column holding the id of the node the edge leaves (defaults to the model's `foreign_key`).
 - `target:` the column holding the id of the node it arrives at.
+
+`to:` and `through:` take a class, which keeps them checked by Ruby and by type checkers, or a model name as a
+String. A class loads that model when this one loads; a name is looked up only when a query first needs the edge, so
+use one to break a load-order cycle or to name a model that may not exist in every app.
 
 ## From SQL
 
@@ -52,7 +56,7 @@ For anything else, give SQL selecting `source_id` and `target_id`:
 
 ```ruby
 class Venue < ApplicationRecord
-  graph_edge :near, to: 'Venue', sql: <<~SQL
+  graph_edge :near, to: Venue, sql: <<~SQL
     SELECT a.id AS source_id, b.id AS target_id
     FROM venues a JOIN venues b ON a.id <> b.id AND ST_DWithin(a.location, b.location, 500)
   SQL
@@ -62,13 +66,39 @@ end
 SQL edges can't take `edge_where:` filters (there's no model to check columns against), and the planner can only use
 indexes if it can push the `source_id = ...` condition into your SQL.
 
+## Computed edges
+
+When the SQL depends on something known only when the query runs (the current time, a setting, a scope built in
+Ruby), give a callable instead. It runs each time a query is built, and returns a relation or a String that selects
+`source_id` and `target_id`:
+
+```ruby
+class Venue < ApplicationRecord
+  # Pass it as computed:
+  graph_edge :open_with, to: Venue, computed: lambda {
+    VenuePair.where('opens_at <= ? AND closes_at > ?', Time.current, Time.current)
+             .select('venue_a_id AS source_id, venue_b_id AS target_id')
+  }
+
+  # or as a block
+  graph_edge(:same_locale, to: Venue) do
+    Venue.joins('JOIN venues other ON other.locale_id = venues.locale_id AND other.id <> venues.id')
+         .select('venues.id AS source_id, other.id AS target_id')
+  end
+end
+```
+
+The result is compiled into the walk's one statement like any other edge. The callable only builds the SQL: it isn't
+called once per node, so it can't run Ruby on each row. Computed edges, like SQL edges, take no `edge_where:` and
+can't be written by a [transaction](#writes).
+
 ## Filtering an edge's rows: `where:`
 
 Every form takes `where:`, a Hash or a scope Proc run on the edge's table:
 
 ```ruby
 graph_edge :headlines, association: :event_people, where: { role: 'headliner' }
-graph_edge :current_members, to: 'Person', through: 'Membership', source: :group_id, target: :person_id,
+graph_edge :current_members, to: Person, through: Membership, source: :group_id, target: :person_id,
                              where: -> { where(ended_at: nil) }
 ```
 
@@ -78,7 +108,7 @@ Declarations with the same name are one edge kind. A walk over `:contains` follo
 
 ```ruby
 graph_edge :contains, association: :children                       # a locale's sub-locales
-graph_edge :contains, to: 'Locale', through: 'LocaleGrouping',      # and, for a super locale, its members
+graph_edge :contains, to: Locale, through: LocaleGrouping,          # and, for a super locale, its members
                       source: :super_locale_id, target: :member_locale_id
 ```
 

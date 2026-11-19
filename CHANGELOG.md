@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.0 (2026-11-19)
+
+- Computed edges: `graph_edge name, to:, computed: -> { ... }` (or a block) returns a relation or SQL, built each
+  time a query runs and compiled into the same single statement.
+- `GraphQuery.transaction` writes through declared edges: `link`, `unlink`, `relink`, `linked?`, plus `create`,
+  `update` and `destroy`, in one database transaction. Foreign keys are set or cleared, and join rows created or
+  destroyed, wherever the edge is kept.
+- `graph_mutation` marks a model method as a graph mutation: it runs in a transaction, is handed the graph, and
+  carries the argument and result types GraphQL needs.
+- `require 'graph_query/graphql'` for graphql-ruby: `graph_field` (by edge, pattern or block; batched through
+  `GraphQL::Dataloader`; connections paginate in SQL), `graph_edges` (a field per declared edge), `graph_mutations`
+  (a mutation field per graph mutation), `TransactionalMutation` and `edge_mutation`.
+- `to:`, `through:` and `via:` take model classes as well as names.
+- RBS and RBI signatures for the above.
+
 ## 0.1.0 (2026-11-19)
 
 First release.

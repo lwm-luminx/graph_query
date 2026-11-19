@@ -15,10 +15,15 @@ module GraphQuery
       #   graph_edge :contains, to: 'Locale', through: 'LocaleGrouping', # a join model named outright
       #                         source: :super_locale_id, target: :member_locale_id
       #   graph_edge :near, to: 'Venue', sql: 'SELECT a_id AS source_id, b_id AS target_id FROM venue_pairs'
+      #   graph_edge :near, to: 'Venue', computed: -> { VenuePair.where(active: true)             # built per query
+      #                                                         .select('a_id AS source_id, b_id AS target_id') }
+      #   graph_edge(:near, to: 'Venue') { VenuePair.select('a_id AS source_id, b_id AS target_id') }  # the same
       #
       # where: a Hash or a scope Proc (run on the edge's table) that rows must match, besides the association's own
       # scope. Several declarations with one name make one edge kind that unions them.
-      def graph_edge(name, association: nil, to: nil, through: nil, source: nil, target: nil, sql: nil, where: nil)
+      def graph_edge(name, association: nil, to: nil, through: nil, source: nil, target: nil, sql: nil, where: nil,
+                     computed: nil, &block)
+        sql = computed || block || sql
         @graph_edges_declared ||= begin
           GraphQuery.registry.clear(self.name)
           true
@@ -44,6 +49,28 @@ module GraphQuery
         else
           raise ArgumentError, 'graph_edge needs association:, through: or sql:'
         end
+      end
+
+      # Declares a graph mutation (see GraphQuery::Mutation): graph_mutation def name(...) ... end, options decorates
+      # that method; graph_mutation options alone decorates the next method defined.
+      def graph_mutation(name = nil, arguments: {}, returns: nil, description: nil)
+        options = { arguments:, returns:, description: }
+        return @pending_graph_mutation = options if name.nil?
+
+        mutation = Mutation.new(model: self, name:, **options)
+        graph_mutations[mutation.name] = mutation
+        Mutation::Wrapping.wrap(self, mutation.name)
+        mutation.name
+      end
+
+      # This model's graph mutations, by name.
+      def graph_mutations = @graph_mutations ||= {}
+
+      def method_added(name)
+        super
+        options = @pending_graph_mutation or return
+        @pending_graph_mutation = nil
+        graph_mutation(name, **options)
       end
 
       # Walks edges from every node in the current scope (Locale.where(...).traverse(:contains, depth: 0..)).

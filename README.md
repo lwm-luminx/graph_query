@@ -20,7 +20,7 @@ class Locale < ApplicationRecord
   has_many :venues
 
   graph_edge :contains, association: :children
-  graph_edge :contains, to: 'Locale', through: 'LocaleGrouping', source: :super_locale_id, target: :member_locale_id
+  graph_edge :contains, to: Locale, through: LocaleGrouping, source: :super_locale_id, target: :member_locale_id
   graph_edge :has_venue, association: :venues
 end
 
@@ -55,6 +55,10 @@ CYPHER
   (`polymorphic(Comment.all, :commentable)`), per-start grouping for GraphQL dataloaders (`by_origin`), and `paths`.
 - **Patterns** (`GraphQuery.match`) and **Cypher** (`GraphQuery.cypher`): `MATCH` with property maps and several
   paths, `WHERE`, `RETURN`, `ORDER BY`, `SKIP`, `LIMIT`, `$params`.
+- **Writes**: `GraphQuery.transaction` links and unlinks through the same edges, and `graph_mutation` marks model
+  methods that write the graph in one transaction.
+- **GraphQL** (`require 'graph_query/graphql'`): batched fields backed by walks, a field per declared edge, and
+  mutation fields from graph mutations.
 - **Types**: RBS signatures in `sig/` and a Sorbet RBI in `rbi/`.
 - **Speed**: edges join through `CROSS JOIN LATERAL`, so each hop reads the edge table through its index.
 
@@ -65,7 +69,8 @@ Requires Ruby 4.0+, Active Record 7.1+ and PostgreSQL.
 The guide is in [docs/](docs/) and published at https://lwm-luminx.github.io/graph_query/:
 [getting started](docs/01-getting-started.md), [declaring edges](docs/02-declaring-edges.md),
 [walking](docs/03-walking.md), [results](docs/04-results.md), [patterns](docs/05-patterns.md),
-[Cypher queries](docs/06-cypher.md), [how it runs](docs/07-internals.md) and the [reference](docs/08-reference.md).
+[Cypher queries](docs/06-cypher.md), [writing edges](docs/07-writes.md), [GraphQL](docs/08-graphql.md),
+[how it runs](docs/09-internals.md) and the [reference](docs/10-reference.md).
 
 ## Development
 

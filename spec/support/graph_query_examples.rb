@@ -250,6 +250,82 @@ RSpec.shared_examples 'graph_query' do
     end
   end
 
+  describe 'computed edges' do
+    it 'walks an edge built by a callable when the query runs' do
+      expect(names(eagle.traverse(:same_place))).to eq(['Wildrose'])
+      expect(names(GqPlace.where(id: washington).traverse(:contains, depth: 0..).traverse(:has_venue)
+                          .traverse(:same_place))).to eq(%w[Eagle Wildrose])
+    end
+  end
+
+  describe 'transaction' do
+    let(:hill) { GqPlace.create!(name: 'Capitol Hill', kind: 'neighborhood') }
+
+    it 'links and unlinks through every kind of edge table' do
+      graph = GraphQuery.transaction do |g|
+        g.link(seattle, :contains, hill, via: 'GqPlace')          # has_many: the child's parent_id
+        g.link(hill, :has_venue, eagle)                           # has_many: the venue's gq_place_id
+        g.link(drew, :billed_on, karaoke)                         # join row
+        g.unlink(drew, :billed_on, drag_brunch)
+        g.link(northwest, :contains, hill, via: GqGrouping, attributes: { role: 'nearby' })
+      end
+      expect(hill.reload.parent_id).to eq(seattle.id)
+      expect(eagle.reload.gq_place_id).to eq(hill.id)
+      expect(names(drew.traverse(:billed_on))).to eq(['Karaoke', 'Leather Night'])
+      expect(GqGrouping.find_by(super_place_id: northwest.id, member_place_id: hill.id).role).to eq('nearby')
+      expect(graph.changes.map(&:action)).to eq(%i[link link link unlink link])
+    end
+
+    it 'writes belongs_to edges, relinks, checks, and changes nothing that is already so' do
+      GraphQuery.transaction do |g|
+        g.link(hill, :within, king)
+        g.relink(spokane, :has_venue, eagle, from: seattle)
+        expect(g.linked?(hill, :within, king)).to be(true)
+        expect(g.linked?(seattle, :has_venue, eagle)).to be(false)
+        expect { g.link(spokane, :has_venue, eagle) }.not_to(change { g.changes.size })
+        expect { g.unlink(drew, :billed_on, karaoke) }.not_to(change { g.changes.size })
+      end
+      expect(hill.reload.parent_id).to eq(king.id)
+      expect(eagle.reload.gq_place_id).to eq(spokane.id)
+    end
+
+    it 'rolls every write back on an error' do
+      expect do
+        GraphQuery.transaction do |g|
+          g.link(hill, :has_venue, eagle)
+          raise 'boom'
+        end
+      end.to raise_error('boom')
+      expect(eagle.reload.gq_place_id).to eq(seattle.id)
+    end
+
+    it 'refuses edges it cannot write or pick' do
+      expect { GraphQuery.transaction { it.link(seattle, :contains, hill) } }
+        .to raise_error(GraphQuery::AmbiguousResult, /via:/)
+      expect { GraphQuery.transaction { it.link(eagle, :same_place, globe) } }.to raise_error(GraphQuery::NoEdges)
+    end
+  end
+
+  describe 'graph_mutation' do
+    let(:hill) { GqPlace.create!(name: 'Capitol Hill', kind: 'neighborhood') }
+
+    it 'runs a decorated method in a transaction with the graph passed in' do
+      expect(seattle.adopt(child: hill)).to eq(seattle)
+      expect(hill.reload.parent_id).to eq(seattle.id)
+      expect { spokane.take_venues(venues: [eagle, wildrose], fail: true) }.to raise_error(GraphQuery::Error)
+      expect(eagle.reload.gq_place_id).to eq(seattle.id)
+      expect(spokane.take_venues(venues: [eagle])).to eq(eagle)
+    end
+
+    it 'carries what GraphQL needs' do
+      adopt = GqPlace.graph_mutations.fetch(:adopt)
+      expect([adopt.required, adopt.keywords, adopt.takes_graph?]).to eq([[:child], [:child], true])
+      take = GqPlace.graph_mutations.fetch(:take_venues)
+      expect([take.required, take.keywords, take.returns]).to eq([[:venues], %i[venues fail], 'GqVenue'])
+      expect([GqPlace.graph_mutations.fetch(:tidy).keywords, seattle.tidy]).to eq([[], seattle])
+    end
+  end
+
   describe 'Apache AGE' do
     it 'knows when AGE is missing' do
       expect(GraphQuery::Age.available?).to be(false)

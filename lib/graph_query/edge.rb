@@ -12,7 +12,7 @@ module GraphQuery
 
     # name: the edge's name (a Symbol). from/to: node model names. table_model: the model whose table holds the
     # rows. conditions: [scope Proc or Hash, ...] applied to that table. sql: instead of a table, SQL selecting
-    # source_id and target_id.
+    # source_id and target_id, or a callable returning that SQL or a relation (a computed edge, built per query).
     def initialize(name:, from:, to:, declared_by:, table_model: nil, source_column: nil, target_column: nil,
                    conditions: [], sql: nil)
       @name = name.to_sym
@@ -71,7 +71,7 @@ module GraphQuery
       if sql
         raise ArgumentError, "edge #{inspect} is SQL, so it can't take edge filters" if edge_where.present?
 
-        return sql
+        return computed_sql
       end
 
       relation = model.unscoped
@@ -82,6 +82,21 @@ module GraphQuery
       relation.unscope(:order, :limit, :offset, :select)
               .select(table[source_column].as('source_id'), table[target_column].as('target_id'))
               .to_sql
+    end
+
+    # A computed edge's SQL, from its callable (run each time a query is built): a relation or a String selecting
+    # source_id and target_id.
+    def computed_sql
+      return sql unless sql.respond_to?(:call)
+
+      result = sql.call
+      result = result.to_sql if result.respond_to?(:to_sql)
+      unless result.is_a?(String)
+        raise ArgumentError,
+              "computed edge #{inspect} must return a relation or SQL, not #{result.class}"
+      end
+
+      result
     end
 
     def apply(relation, condition)

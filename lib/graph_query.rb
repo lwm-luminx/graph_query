@@ -33,10 +33,12 @@ module GraphQuery
   autoload :Edge, 'graph_query/edge'
   autoload :Match, 'graph_query/match'
   autoload :Model, 'graph_query/model'
+  autoload :Mutation, 'graph_query/mutation'
   autoload :Pattern, 'graph_query/pattern'
   autoload :Query, 'graph_query/query'
   autoload :Registry, 'graph_query/registry'
   autoload :Syntax, 'graph_query/syntax'
+  autoload :Transaction, 'graph_query/transaction'
 
   # Where to start a walk: SQL selecting (node_type, node_id), and the models it can hold.
   StartSet = Data.define(:sql, :types)
@@ -73,6 +75,14 @@ module GraphQuery
     # Hashes of edge conditions) for the pattern's variables; params: gives values for $names in property maps. The
     # first node must be bound or labelled.
     def match(pattern, params: {}, **bindings) = Match.new(Pattern.parse(pattern, params), bindings)
+
+    # Runs the block in a database transaction (a savepoint inside an open one) with a Transaction for writing
+    # edges; any error rolls every write back. Returns the Transaction, whose changes list what was written.
+    def transaction
+      graph = Transaction.new
+      ActiveRecord::Base.transaction(requires_new: true) { yield graph }
+      graph
+    end
 
     # Runs a Cypher query (MATCH ... WHERE ... RETURN ...); see GraphQuery::Cypher. Params give values for $names.
     def cypher(query, **params) = Cypher.new(query, params).result
