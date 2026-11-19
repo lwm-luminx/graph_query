@@ -1,6 +1,7 @@
-# Cypher-style patterns
+# Patterns
 
-`GraphQuery.match(pattern, **bindings)` runs a linear Cypher-style pattern. It builds the same steps as `traverse`, so
+`GraphQuery.match(pattern, **bindings)` runs a linear Cypher-style pattern with Ruby bindings. For a whole Cypher
+query as text (`MATCH ... WHERE ... RETURN`), see [Cypher queries](#cypher). It builds the same steps as `traverse`, so
 everything about walks applies.
 
 ```ruby
@@ -22,6 +23,8 @@ Locale.where(name: 'Seattle').graph_match('(l)-[:contains*0..]->()-[:has_venue]-
 | Part | Means |
 | --- | --- |
 | `(v)`, `(v:Venue)`, `(:Venue|Event)`, `()` | a node, with an optional variable and labels (models) |
+| `(v:Venue {kind: 'bar', city: $city})` | a node whose columns match a property map |
+| `-[:billed_on {role: 'headliner'}]->` | edges whose rows match a property map |
 | `-[:has_venue]->` | one hop out along `has_venue` |
 | `<-[:hosts]-` | one hop in (walk `hosts` backwards) |
 | `-[:knows]-` | one hop either way |
@@ -43,6 +46,16 @@ There's no `WHERE` or `RETURN` text. Bind variables instead:
 - **A relationship variable** to a Hash or scope Proc: an `edge_where:` on that step.
   `GraphQuery.match('(e:Event)<-[b:billed_on]-(p:Person)', e: event, b: { role: 'headliner' })`.
 
+Property maps do the same job inline. Their values are literals (`'text'`, `42`, `1.5`, `true`, `null`, `[...]`) or
+`$params`, read from `params:`:
+
+```ruby
+GraphQuery.match("(s:Locale {name: $state})-[:contains*0..]->()-[:has_venue]->(v:Venue {kind: 'bar'})",
+                 params: { state: 'Washington' })
+```
+
+A node with a property map needs one label or a binding, so graph_query knows which table the columns are in.
+
 The first node must be bound or have exactly one label (`(s:Locale)` alone starts from every locale).
 
 ## Results
@@ -61,8 +74,7 @@ match.query          # the underlying GraphQuery::Query
 A variable in the middle counts only nodes that lie on a full match: graph_query walks forward to that node, walks
 back from the end of every full match to it, and keeps the overlap.
 
-## Not supported
+## Beyond one path
 
-Branching patterns (`(a)-->(b), (a)-->(c)`), properties in braces (`{name: 'x'}`), `WHERE`, `RETURN`, `OPTIONAL MATCH`
-and aggregation. Bindings and relation methods do those jobs; for anything more, chain `traverse` steps or use
-`from_query` to start a second walk from the first one's result.
+More than one path, `WHERE`, `RETURN`, `ORDER BY`, `SKIP` and `LIMIT`: [Cypher queries](#cypher) take those. For
+anything else, chain `traverse` steps or use `from_query` to start a second walk from the first one's result.

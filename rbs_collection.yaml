@@ -1,0 +1,16 @@
+# Signatures for the gems graph_query depends on, from ruby/gem_rbs_collection.
+sources:
+  - type: git
+    name: ruby/gem_rbs_collection
+    remote: https://github.com/ruby/gem_rbs_collection.git
+    revision: main
+    repo_dir: gems
+
+path: .gem_rbs_collection
+
+gems:
+  - name: activerecord
+  - name: activesupport
+  - name: activemodel
+  - name: pg
+  - name: strscan

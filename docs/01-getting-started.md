@@ -9,11 +9,9 @@ It needs nothing installed in the database: no Apache AGE, no extension. That is
 
 ## Install
 
-In AudienceKit the engine lives at `engines/graph_query` and is loaded from the Gemfile by path, like `graphql_kit`:
-
 ```ruby
 # Gemfile
-gem 'graph_query', path: 'engines/graph_query'
+gem 'graph_query'
 ```
 
 It needs Ruby 4.0+, Active Record 7.1+ and the `pg` adapter. Once loaded, every Active Record model gets
@@ -21,8 +19,7 @@ It needs Ruby 4.0+, Active Record 7.1+ and the `pg` adapter. Once loaded, every 
 
 ## A first walk
 
-The examples in this guide use a small, simplified schema (venues with a `kind`, events, people). The edges
-AudienceKit really declares are listed under [In AudienceKit](#audiencekit).
+The examples in this guide use a small schema of places, venues, events and people.
 
 Say locales nest (a state contains cities, a city contains neighborhoods) and venues belong to a locale:
 
@@ -51,11 +48,17 @@ seattle = Locale.find_by(name: 'Seattle')
 seattle.traverse(:within, depth: 1..)                            # every locale Seattle lies within
 ```
 
-The same walk as a pattern:
+The same walk as a pattern, and as a Cypher query:
 
 ```ruby
 GraphQuery.match('(s:Locale)-[:contains*0..]->()-[:has_venue]->(v:Venue)', s: washington)
           .where(kind: 'bar')
+
+GraphQuery.cypher(<<~CYPHER, state: 'Washington')
+  MATCH (s:Locale {name: $state})-[:contains*0..]->()-[:has_venue]->(v:Venue)
+  WHERE v.kind = 'bar'
+  RETURN v ORDER BY v.name
+CYPHER
 ```
 
 ## The model in one paragraph
@@ -71,6 +74,7 @@ result.
 - [Declaring edges](#declaring-edges): every way to turn a table into edges.
 - [Walking](#walking): the options a step takes.
 - [Results](#results): relations, depths, pairs, paths, roll-ups and dataloaders.
-- [Cypher-style patterns](#patterns): the same walks as text.
-- [In AudienceKit](#audiencekit): the edges the API declares and the walks it runs.
+- [Patterns](#patterns): the same walks as text, with Ruby bindings.
+- [Cypher queries](#cypher): MATCH, WHERE, RETURN, ORDER BY, SKIP, LIMIT.
 - [How it runs](#internals): the SQL, performance and limits.
+- [Reference](#reference): every method, errors, and RBS / Sorbet types.

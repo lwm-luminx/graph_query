@@ -1,0 +1,190 @@
+# Signatures for graph_query's public API. Active Record types come from rbs_rails / gem_rbs_collection.
+module GraphQuery
+  VERSION: String
+
+  class Error < StandardError
+  end
+
+  class NoEdges < Error
+  end
+
+  class AmbiguousResult < Error
+  end
+
+  class PatternError < Error
+  end
+
+  class UnsupportedCypher < Error
+  end
+
+  type scope = ActiveRecord::Relation | ActiveRecord::Base | singleton(ActiveRecord::Base)
+  type model_ref = singleton(ActiveRecord::Base) | String | Symbol
+  type edge_condition = Hash[untyped, untyped] | ^() -> untyped
+  type depth = Integer | Range[Integer?]
+  type direction = :out | :in | :both
+  type names = Symbol | Array[Symbol] | nil
+  type node_pair = [String, untyped]
+
+  class StartSet
+    attr_reader sql: String
+    attr_reader types: Array[String]
+
+    def initialize: (sql: String, types: Array[String]) -> void
+  end
+
+  attr_writer self.max_depth: Integer?
+
+  def self.max_depth: () -> Integer
+  def self.registry: () -> Registry
+  def self.from: (scope) -> Query
+  def self.from_pairs: (Array[[model_ref, untyped]]) -> Query
+  def self.from_query: (Query) -> Query
+  def self.match: (String pattern, ?params: Hash[Symbol, untyped], **untyped bindings) -> Match
+  def self.cypher: (String query, **untyped params) -> (ActiveRecord::Relation | Array[untyped] | Integer)
+  def self.start_set: (ActiveRecord::Relation) -> StartSet
+  def self.relation_for: (scope) -> ActiveRecord::Relation
+  def self.type_name: (scope | String | Symbol) -> String
+  def self.model_for: (model_ref) -> singleton(ActiveRecord::Base)
+
+  # Added to every Active Record model.
+  module Model : ActiveRecord::Base
+    module ClassMethods
+      def graph_edge: (Symbol name, ?association: Symbol?, ?to: String | Symbol | nil, ?through: String | Symbol | nil,
+                       ?source: Symbol | String | nil, ?target: Symbol | String | nil, ?sql: String?,
+                       ?where: edge_condition?) -> void
+      def traverse: (?names, **untyped) -> Query
+      def graph: () -> Query
+      def graph_match: (String pattern, ?params: Hash[Symbol, untyped], **untyped bindings) -> Match
+    end
+
+    def traverse: (?names, **untyped) -> Query
+    def graph: () -> Query
+  end
+
+  class Edge
+    attr_reader name: Symbol
+    attr_reader from: String
+    attr_reader to: String
+    attr_reader table_model: String?
+    attr_reader source_column: String?
+    attr_reader target_column: String?
+    attr_reader conditions: Array[untyped]
+    attr_reader sql: String?
+    attr_reader declared_by: String
+
+    def initialize: (name: Symbol | String, from: String, to: String, declared_by: String, ?table_model: String?,
+                     ?source_column: String | Symbol | nil, ?target_column: String | Symbol | nil,
+                     ?conditions: Array[untyped], ?sql: String?) -> void
+    def key: () -> Array[untyped]
+    def rows_sql: (direction, ?edge_where: edge_condition?, ?bound: String?) -> String
+    def model: () -> singleton(ActiveRecord::Base)?
+    def filterable_by?: (edge_condition?) -> bool
+  end
+
+  class Registry
+    def add: (?Edge? edge, ?key: Array[untyped]?, ?declared_by: String?) ?{ () -> Edge } -> void
+    def clear: (String declared_by) -> void
+    def all: () -> Array[Edge]
+    def walkable: (Array[String] types, Array[Symbol]? names, direction) -> Array[[Edge, :out | :in]]
+  end
+
+  class Query
+    include Enumerable[ActiveRecord::Base]
+
+    class Step
+      attr_reader names: Array[Symbol]?
+      attr_reader direction: direction
+      attr_reader min: Integer
+      attr_reader max: Integer?
+      attr_reader labels: Array[String]?
+      attr_reader where: Array[untyped]?
+      attr_reader through: Array[untyped]?
+      attr_reader edge_where: edge_condition?
+    end
+
+    attr_reader start: StartSet
+    attr_reader steps: Array[Step]
+
+    def initialize: (StartSet start, ?Array[Step] steps) -> void
+    def traverse: (?names, ?depth: depth, ?direction: direction, ?to: model_ref | Array[model_ref] | nil,
+                   ?where: scope | Hash[untyped, untyped] | Array[scope] | nil,
+                   ?through: scope | Array[scope] | nil, ?edge_where: edge_condition?) -> Query
+    def out: (?names, **untyped) -> Query
+    def inbound: (?names, **untyped) -> Query
+    def both: (?names, **untyped) -> Query
+    def types: () -> Array[String]
+    def to_sql: (?origin: bool, ?depth: bool, ?path: bool) -> String
+    def to_relation: (?model_ref? model) -> ActiveRecord::Relation
+    alias nodes to_relation
+    def with_depth: (?model_ref? model) -> ActiveRecord::Relation
+    def pairs: () -> Array[node_pair]
+    def records: () -> Array[ActiveRecord::Base]
+    def by_origin: (?model_ref? model) -> Hash[untyped, Array[ActiveRecord::Base]]
+    def origin_pairs: (?model_ref? model) -> Array[[untyped, untyped]]
+    def paths: () -> Array[Array[node_pair]]
+    def polymorphic: (ActiveRecord::Relation scope, Symbol | String name) -> ActiveRecord::Relation
+    def each: () { (ActiveRecord::Base) -> void } -> void
+    def compiler: () -> Compiler
+  end
+
+  class Compiler
+    attr_reader types: Array[Array[String]]
+
+    def initialize: (Query query, ?origin: bool, ?depth: bool, ?path: bool) -> void
+    def sql: () -> String
+  end
+
+  class Pattern
+    class Node
+      attr_reader var: Symbol?
+      attr_reader labels: Array[String]?
+      attr_reader props: Hash[Symbol, untyped]?
+    end
+
+    class Rel
+      attr_reader var: Symbol?
+      attr_reader names: Array[Symbol]?
+      attr_reader direction: direction
+      attr_reader min: Integer
+      attr_reader max: Integer?
+      attr_reader props: Hash[Symbol, untyped]?
+    end
+
+    attr_reader nodes: Array[Node]
+    attr_reader rels: Array[Rel]
+    attr_reader source: String
+
+    def self.parse: (String source, ?Hash[Symbol, untyped] params) -> Pattern
+    def initialize: (String source, ?params: Hash[Symbol, untyped], ?scanner: StringScanner?) -> void
+    def variables: () -> Hash[Symbol, [:node | :rel, Integer]]
+  end
+
+  class Match
+    attr_reader pattern: Pattern
+    attr_reader bindings: Hash[Symbol, untyped]
+
+    def initialize: (Pattern pattern, Hash[Symbol | String, untyped] bindings) -> void
+    def query: (?Integer upto) -> Query
+    def nodes: (?Symbol? var, ?model: model_ref?) -> ActiveRecord::Relation
+    def paths: () -> Array[Array[node_pair]]
+    def to_relation: (?model_ref? model) -> ActiveRecord::Relation
+  end
+
+  class Cypher
+    attr_reader patterns: Array[Pattern]
+    attr_reader items: Array[untyped]
+    attr_reader distinct: bool
+    attr_reader orders: Array[untyped]
+    attr_reader skip: Integer?
+    attr_reader limit: Integer?
+
+    def initialize: (String source, ?Hash[Symbol | String, untyped] params) -> void
+    def result: () -> (ActiveRecord::Relation | Array[untyped] | Integer)
+    def nodes: (Symbol var) -> ActiveRecord::Relation
+  end
+
+  module Age
+    def self.available?: (?untyped connection) -> bool
+    def self.cypher: (String graph, String query, ?columns: Array[String | Symbol], ?connection: untyped) -> untyped
+  end
+end

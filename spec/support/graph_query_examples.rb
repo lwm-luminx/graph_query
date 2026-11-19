@@ -165,6 +165,89 @@ RSpec.shared_examples 'graph_query' do
       expect { GraphQuery::Pattern.parse('(a)<-[]->(b)') }.to raise_error(GraphQuery::PatternError)
       expect { GraphQuery::Pattern.parse('(a)-[:x') }.to raise_error(GraphQuery::PatternError)
     end
+
+    it 'reads property maps, with params' do
+      match = GraphQuery.match('(s:GqPlace {kind: $kind})-[:contains {role: "nearby"}]->(c)', params: { kind: 'metro' })
+      expect(names(match)).to eq(['Portland'])
+      node = GraphQuery::Pattern.parse("(v:GqVenue {name: 'Eagle', open: true, n: -1.5, tags: ['a'], m: {x: null}})")
+                                .nodes.first
+      expect(node.props).to eq(name: 'Eagle', open: true, n: -1.5, tags: ['a'], m: { x: nil })
+    end
+  end
+
+  describe 'cypher' do
+    def cypher(query, **params) = GraphQuery.cypher(query, **params)
+
+    it 'runs MATCH ... RETURN with property maps and params' do
+      result = cypher('MATCH (s:GqPlace {name: $state})-[:contains*0..]->()-[:has_venue]->(v:GqVenue) RETURN v',
+                      state: 'Washington')
+      expect(names(result)).to eq(%w[Eagle Globe Wildrose])
+      expect(result).to be_a(ActiveRecord::Relation)
+    end
+
+    it 'filters with WHERE on any variable, the middle ones included' do
+      query = <<~CYPHER
+        MATCH (s:GqPlace)-[:contains*0..]->(c:GqPlace)-[:has_venue]->(v:GqVenue)
+        WHERE s.name = 'USA' AND c.kind = 'city' AND (v.name STARTS WITH 'E' OR v.name ENDS WITH 'sh')
+        RETURN v
+      CYPHER
+      expect(names(cypher(query))).to eq(%w[Crush Eagle])
+      expect(names(cypher("MATCH (p:GqPlace) WHERE p.kind IN ['city', 'metro'] AND NOT p.name =~ 'S.*' RETURN p")))
+        .to eq(['Pacific Northwest', 'Portland'])
+      expect(names(cypher("MATCH (p:GqPlace) WHERE toLower(p.name) CONTAINS 'land' RETURN p"))).to eq(['Portland'])
+      expect(names(cypher('MATCH (p:GqPlace) WHERE p.parent_id IS NULL RETURN p'))).to eq(['Pacific Northwest', 'USA'])
+      expect(names(cypher("MATCH (p:GqPlace) WHERE p.kind = 'city' XOR p.name ENDS WITH 'e' RETURN p")))
+        .to eq(['Portland'])
+      expect(names(cypher("MATCH (p:GqPlace) WHERE p.kind NOT IN ['city', 'state'] RETURN p")))
+        .to eq(['King County', 'Pacific Northwest', 'USA'])
+    end
+
+    it 'tests a bare property for true and takes edge property maps' do
+      expect(names(cypher('MATCH (v:GqVenue)-[:hosts]->(e:GqEvent) WHERE e.cancelled RETURN v'))).to eq(['Eagle'])
+      expect(names(cypher("MATCH (:GqPlace {name: 'Pacific Northwest'})-[:contains {role: 'core'}]->(c) RETURN c")))
+        .to eq(['Seattle'])
+    end
+
+    it 'returns properties, counts, order, skip and limit' do
+      query = "MATCH (:GqPlace {name: 'USA'})-[:contains*1..]->(c:GqPlace) WHERE c.kind = 'city' " \
+              'RETURN c.name ORDER BY c.name DESC SKIP 1 LIMIT $n'
+      expect(cypher(query, n: 1)).to eq(['Seattle'])
+      expect(cypher("MATCH (p:GqPlace) WHERE p.kind = 'state' RETURN p.name, p.kind ORDER BY p.name"))
+        .to eq([%w[Oregon state], %w[Washington state]])
+      expect(cypher('MATCH (p:GqPlace) RETURN DISTINCT p.kind ORDER BY p.kind')).to eq(%w[city country county metro
+                                                                                          state])
+      expect(cypher('MATCH (:GqVenue)-[:hosts]->(e:GqEvent) RETURN count(*)')).to eq(4)
+      expect(cypher('MATCH (v:GqVenue)-[:hosts]->(:GqEvent) RETURN count(DISTINCT v)')).to eq(3)
+    end
+
+    it 'reads comments, any keyword case, functions in ORDER BY and columns compared on one node' do
+      query = <<~CYPHER
+        // cities, lowest first
+        match (p:GqPlace) where p.kind = 'city' and p.name <> p.kind
+        return p.name order by toLower(p.name) desc limit 2;
+      CYPHER
+      expect(cypher(query)).to eq(%w[Spokane Seattle])
+    end
+
+    it 'joins several patterns on the variables they share' do
+      query = <<~CYPHER
+        MATCH (p:GqPerson)-[:billed_on]->(e:GqEvent), (v:GqVenue)-[:hosts]->(e)
+        MATCH (:GqPlace {name: 'Oregon'})-[:contains*0..]->()-[:has_venue]->(v)
+        RETURN e
+      CYPHER
+      expect(names(cypher(query))).to eq(['Drag Brunch'])
+    end
+
+    it 'says what it does not do' do
+      expect { cypher('MATCH (a:GqPlace)-->(b:GqPlace) WHERE a.name = b.name RETURN a') }
+        .to raise_error(GraphQuery::UnsupportedCypher, /compares a and b/)
+      expect { cypher('MATCH (a:GqPlace)-->(b) RETURN a, b') }.to raise_error(GraphQuery::UnsupportedCypher)
+      expect { cypher('OPTIONAL MATCH (a:GqPlace) RETURN a') }.to raise_error(GraphQuery::UnsupportedCypher)
+      expect { cypher('MATCH (a:GqPlace) WHERE a.nope = 1 RETURN a') }.to raise_error(GraphQuery::UnsupportedCypher)
+      expect { cypher('MATCH (a:GqPlace) RETURN a', x: 1).to_a && cypher('MATCH (a:GqPlace {name: $x}) RETURN a') }
+        .to raise_error(GraphQuery::PatternError, /\$x/)
+      expect { cypher('MATCH (a:GqPlace) RETRN a') }.to raise_error(GraphQuery::PatternError)
+    end
   end
 
   describe 'Apache AGE' do

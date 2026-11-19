@@ -92,13 +92,17 @@ GraphQuery::Age.available?   # => false on Heroku Postgres
 GraphQuery::Age.cypher('my_graph', 'MATCH (a)-[:KNOWS]->(b) RETURN a, b', columns: %w[a b])
 ```
 
-It's a pass-through for databases that have it, not a second engine: AudienceKit uses the CTE walker only.
+It's a pass-through for databases that have it, not a second engine: everything else in graph_query runs on the CTE
+walker, which is also why `GraphQuery.cypher` works on Heroku Postgres, RDS and anywhere else without AGE.
 
 ## Tests
 
 The behaviour is written as shared examples (`spec/support/graph_query_examples.rb`) over a small graph in `gq_`
-tables. The API runs them in `spec/graph_query`; to run them on their own from the app's root:
+tables, so an app can run the same examples against its own database. On their own:
 
 ```sh
-GRAPH_QUERY_DATABASE_URL=postgres:///graph_query_test bundle exec rspec -O /dev/null engines/graph_query/spec
+createdb graph_query_test
+GRAPH_QUERY_DATABASE_URL=postgres:///graph_query_test bundle exec rake
 ```
+
+`rake` runs the specs, RuboCop and `rbs validate`.

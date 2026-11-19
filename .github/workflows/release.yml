@@ -1,0 +1,43 @@
+name: Release
+
+# Push a tag vX.Y.Z on main (matching GraphQuery::VERSION) to publish that version to RubyGems. Publishing uses
+# RubyGems trusted publishing: rubygems.org trusts this workflow, so no API key is stored in the repository.
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      contents: write
+      id-token: write
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: graph_query_test
+        ports: ['5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      GRAPH_QUERY_DATABASE_URL: postgres://postgres:postgres@localhost/graph_query_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '4.0'
+          bundler-cache: true
+      - name: Tag matches the gem's version
+        run: |
+          version=$(ruby -r ./lib/graph_query/version -e 'print GraphQuery::VERSION')
+          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, gem version $version"; exit 1; }
+      - run: bundle exec rspec
+      - uses: rubygems/release-gem@v1
+      - name: GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" pkg/*.gem --title "$GITHUB_REF_NAME" --notes-file <(ruby -e 'print File.read("CHANGELOG.md")[/^## #{ARGV[0].delete_prefix("v")}.*?(?=^## |\z)/m]' "$GITHUB_REF_NAME")

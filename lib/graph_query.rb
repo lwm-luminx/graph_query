@@ -21,18 +21,22 @@ module GraphQuery
   class NoEdges < Error; end
   # The walk reaches several models and the caller asked for one relation.
   class AmbiguousResult < Error; end
-  # A pattern GraphQuery.match can't read.
+  # A pattern or Cypher query that can't be read.
   class PatternError < Error; end
+  # Cypher that reads fine but asks for something graph_query doesn't do (comparing two variables, say).
+  class UnsupportedCypher < Error; end
 
   autoload :Age, 'graph_query/age'
   autoload :Associations, 'graph_query/associations'
   autoload :Compiler, 'graph_query/compiler'
+  autoload :Cypher, 'graph_query/cypher'
   autoload :Edge, 'graph_query/edge'
   autoload :Match, 'graph_query/match'
   autoload :Model, 'graph_query/model'
   autoload :Pattern, 'graph_query/pattern'
   autoload :Query, 'graph_query/query'
   autoload :Registry, 'graph_query/registry'
+  autoload :Syntax, 'graph_query/syntax'
 
   # Where to start a walk: SQL selecting (node_type, node_id), and the models it can hold.
   StartSet = Data.define(:sql, :types)
@@ -66,8 +70,12 @@ module GraphQuery
     end
 
     # Runs a Cypher-style linear pattern; see GraphQuery::Pattern for the syntax. Bindings name relations (or
-    # Hashes of edge conditions) for the pattern's variables. The first node must be bound or labelled.
-    def match(pattern, **bindings) = Match.new(Pattern.parse(pattern), bindings)
+    # Hashes of edge conditions) for the pattern's variables; params: gives values for $names in property maps. The
+    # first node must be bound or labelled.
+    def match(pattern, params: {}, **bindings) = Match.new(Pattern.parse(pattern, params), bindings)
+
+    # Runs a Cypher query (MATCH ... WHERE ... RETURN ...); see GraphQuery::Cypher. Params give values for $names.
+    def cypher(query, **params) = Cypher.new(query, params).result
 
     def start_set(relation)
       model = relation.klass

@@ -82,8 +82,8 @@ graph_edge :contains, to: 'Locale', through: 'LocaleGrouping',      # and, for a
                       source: :super_locale_id, target: :member_locale_id
 ```
 
-Edges with one name can also arrive at different models: AudienceKit's `:rolls_up` goes from a venue to its events
-**and** its hosted series.
+Edges with one name can also arrive at different models: a `:rolls_up` edge can go from a venue to its events **and**
+its event series.
 
 ## When edges are built
 

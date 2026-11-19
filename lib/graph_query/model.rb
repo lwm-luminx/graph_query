@@ -57,9 +57,9 @@ module GraphQuery
 
       # A Cypher-style pattern whose first node is the current scope:
       #   Locale.where(slug: 'seattle').graph_match('(l)-[:contains*0..]->()-[:has_venue]->(v:Venue)')
-      def graph_match(pattern, **bindings)
-        first = Pattern.parse(pattern).nodes.first
-        GraphQuery.match(pattern, **bindings, first.var || :__start => all)
+      def graph_match(pattern, params: {}, **bindings)
+        first = Pattern.parse(pattern, params).nodes.first
+        GraphQuery.match(pattern, params:, **bindings, first.var || :__start => all)
       end
     end
 

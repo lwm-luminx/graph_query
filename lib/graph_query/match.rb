@@ -55,8 +55,8 @@ module GraphQuery
 
     def start
       node = pattern.nodes.first
-      bound = @bindings[node.var] || @bindings[:__start]
-      return GraphQuery.relation_for(bound) if bound
+      scope = node_scope(0)
+      return scope if scope
       raise PatternError, 'the first node needs a binding or one label' unless node.labels&.size == 1
 
       node.labels.first.constantize.all
@@ -67,12 +67,34 @@ module GraphQuery
       node = pattern.nodes[index]
       options = {}
       options[:to] = node.labels if node.labels
-      bound = node.var && @bindings[node.var]
-      options[:where] = bound if bound
+      scope = node_scope(index)
+      options[:where] = scope if scope
       options
     end
 
-    def edge_binding(rel) = rel.var && @bindings[rel.var]
+    # What node index i must be in: its binding (a relation, record or model) narrowed by its property map.
+    def node_scope(index)
+      node = pattern.nodes[index]
+      bound = node.var && @bindings[node.var]
+      bound ||= @bindings[:__start] if index.zero?
+      return bound && GraphQuery.relation_for(bound) if node.props.blank?
+
+      relation = if bound then GraphQuery.relation_for(bound)
+                 elsif node.labels&.size == 1 then node.labels.first.constantize.all
+                 else raise PatternError, "(#{node.var}) needs one label or a binding for its property map"
+                 end
+      relation.where(node.props)
+    end
+
+    # The rows a relationship's edges must match: its binding (a Hash or scope Proc) and its property map.
+    def edge_binding(rel)
+      bound = rel.var && @bindings[rel.var]
+      return bound if rel.props.blank?
+      return rel.props if bound.nil?
+      raise PatternError, "[#{rel.var}] has a property map and a binding that isn't a Hash" unless bound.is_a?(Hash)
+
+      bound.merge(rel.props)
+    end
 
     def node_index(var)
       kind, index = pattern.variables[var.to_sym]
