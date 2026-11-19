@@ -1,0 +1,1283 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>graph_query</title>
+<meta name="description" content="Graph traversals and Cypher queries for Active Record on PostgreSQL, on recursive CTEs.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fbfaf8;--panel:#f3f1ed;--text:#1d1b19;--muted:#6b665f;--line:#e4e0d9;--accent:#7a3cff;--accent-soft:#efe7ff;--code-bg:#f4f2ee;--kw:#8a2fc9;--st:#1d7a46;--co:#8a857d;--dv:#b4501a;--dt:#1f5fbf;--at:#0e7490;--wa:#b4235a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141316;--panel:#1c1b1f;--text:#ecebe8;--muted:#a19c95;--line:#2d2b30;--accent:#b597ff;--accent-soft:#2a2240;--code-bg:#1b1a1e;--kw:#c79bff;--st:#7fd19b;--co:#8a857d;--dv:#f0a46b;--dt:#82b4ff;--at:#6fd3e6;--wa:#ff8db5}}
+:root[data-theme="dark"]{--bg:#141316;--panel:#1c1b1f;--text:#ecebe8;--muted:#a19c95;--line:#2d2b30;--accent:#b597ff;--accent-soft:#2a2240;--code-bg:#1b1a1e;--kw:#c79bff;--st:#7fd19b;--co:#8a857d;--dv:#f0a46b;--dt:#82b4ff;--at:#6fd3e6;--wa:#ff8db5}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:16px}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.65 Inter,system-ui,sans-serif}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.wrap{display:grid;grid-template-columns:260px minmax(0,1fr);max-width:1180px;margin:0 auto}
+nav{position:sticky;top:0;height:100vh;overflow:auto;padding:28px 20px 40px max(20px,env(safe-area-inset-left,0px));border-right:1px solid var(--line)}
+nav .brand{font-weight:700;font-size:18px;margin-bottom:2px} nav .brand code{font-size:17px;background:none;padding:0}
+nav .sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+nav ul{list-style:none;margin:0;padding:0} nav li{margin:0}
+nav a{display:block;color:var(--muted);font-size:13.5px;padding:3px 8px;border-radius:6px}
+nav a.top{color:var(--text);font-weight:600;font-size:14px;margin-top:10px}
+nav a.active{background:var(--accent-soft);color:var(--accent)}
+nav ul ul a{padding-left:16px}
+main{padding:40px max(16px,env(safe-area-inset-right,0px)) 120px 48px;min-width:0}
+.hero{padding-bottom:28px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.hero h1{font-size:40px;line-height:1.1;margin:0 0 12px;letter-spacing:-.02em}
+.hero p{color:var(--muted);font-size:18px;margin:0;max-width:62ch}
+.links{margin-top:14px!important;font-size:15px!important}.install{margin:18px 0 0;max-width:340px}
+.pill{display:inline-block;font-size:12px;font-weight:600;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:3px 10px;margin-bottom:14px}
+section{padding-top:36px;border-top:1px solid var(--line);margin-top:36px} section:first-of-type{border-top:0;margin-top:0}
+section h1{font-size:30px;letter-spacing:-.015em;margin:0 0 12px}
+h2{font-size:21px;margin:32px 0 8px} h3{font-size:17px;margin:24px 0 6px}
+p,li{max-width:72ch}
+code{font-variant-ligatures:none;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.86em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;line-height:1.55}
+pre code{font-variant-ligatures:none;background:none;padding:0;font-size:13px}
+.sourceCode span{} .kw,.cf{color:var(--kw)} .st,.vs,.ss{color:var(--st)} .co{color:var(--co);font-style:italic} .dv,.fl,.cn{color:var(--dv)} .dt{color:var(--dt)} .at,.fu{color:var(--at)} .wa{color:var(--wa)}
+.tw{overflow-x:auto;margin:14px 0;border:1px solid var(--line);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:8px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{background:var(--panel);font-weight:600} tr:last-child td{border-bottom:0}
+td code{white-space:nowrap}
+@media (max-width:860px){
+ .wrap{display:block}
+ nav{position:sticky;top:0;z-index:5;height:auto;overflow-x:auto;overflow-y:hidden;white-space:nowrap;background:var(--bg);border-right:0;border-bottom:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-left,0px))}
+ nav .brand,nav .sub,nav ul ul{display:none} nav>ul>li{display:inline-block} nav a.top{margin:0 4px 0 0;font-size:13px}
+ main{padding:24px max(16px,env(safe-area-inset-right,0px)) 80px max(16px,env(safe-area-inset-left,0px))}
+ html{scroll-padding-top:56px} .hero h1{font-size:30px} td code{white-space:normal}
+}
+</style></head><body><div class="wrap">
+<nav><div class="brand"><code>graph_query</code></div><div class="sub">Graph walks for Active Record on PostgreSQL</div><ul><li><a href="#getting-started" class="top">Getting started</a><ul><li><a href="#getting-started-install">Install</a></li><li><a href="#getting-started-a-first-walk">A first walk</a></li><li><a href="#getting-started-the-model-in-one-paragraph">The model in one paragraph</a></li><li><a href="#getting-started-where-to-go-next">Where to go next</a></li></ul></li><li><a href="#declaring-edges" class="top">Declaring edges</a><ul><li><a href="#declaring-edges-from-an-association">From an association</a></li><li><a href="#declaring-edges-from-a-join-model-named-outright">From a join model, named outright</a></li><li><a href="#declaring-edges-from-sql">From SQL</a></li><li><a href="#declaring-edges-computed-edges">Computed edges</a></li><li><a href="#declaring-edges-filtering-an-edges-rows-where">Filtering an edge's rows: <code>where:</code></a></li><li><a href="#declaring-edges-unions">Unions</a></li><li><a href="#declaring-edges-when-edges-are-built">When edges are built</a></li><li><a href="#declaring-edges-ids">Ids</a></li></ul></li><li><a href="#walking" class="top">Walking</a><ul><li><a href="#walking-traversenames--nil-options"><code>traverse(names = nil, **options)</code></a></li><li><a href="#walking-starting-elsewhere">Starting elsewhere</a></li><li><a href="#walking-errors">Errors</a></li></ul></li><li><a href="#results" class="top">Results</a><ul><li><a href="#results-relations">Relations</a></li><li><a href="#results-depth">Depth</a></li><li><a href="#results-several-models">Several models</a></li><li><a href="#results-roll-ups-polymorphic">Roll-ups: <code>polymorphic</code></a></li><li><a href="#results-batching-many-starts-by_origin">Batching many starts: <code>by_origin</code></a></li><li><a href="#results-paths">Paths</a></li><li><a href="#results-sql">SQL</a></li></ul></li><li><a href="#patterns" class="top">Patterns</a><ul><li><a href="#patterns-syntax">Syntax</a></li><li><a href="#patterns-bindings">Bindings</a></li><li><a href="#patterns-results">Results</a></li><li><a href="#patterns-beyond-one-path">Beyond one path</a></li></ul></li><li><a href="#cypher" class="top">Cypher queries</a><ul><li><a href="#cypher-clauses">Clauses</a></li><li><a href="#cypher-where">WHERE</a></li><li><a href="#cypher-return">RETURN</a></li><li><a href="#cypher-several-patterns">Several patterns</a></li><li><a href="#cypher-parameters">Parameters</a></li><li><a href="#cypher-not-supported">Not supported</a></li></ul></li><li><a href="#writes" class="top">Writing edges</a><ul><li><a href="#writes-where-a-write-lands">Where a write lands</a></li><li><a href="#writes-methods">Methods</a></li><li><a href="#writes-graph-mutations">Graph mutations</a></li></ul></li><li><a href="#graphql" class="top">GraphQL</a><ul><li><a href="#graphql-fields-backed-by-walks">Fields backed by walks</a></li><li><a href="#graphql-a-field-per-declared-edge">A field per declared edge</a></li><li><a href="#graphql-mutations-from-graph-mutations">Mutations from graph mutations</a></li><li><a href="#graphql-other-mutations">Other mutations</a></li></ul></li><li><a href="#internals" class="top">How it runs</a><ul><li><a href="#internals-one-statement-per-walk">One statement per walk</a></li><li><a href="#internals-step-shapes">Step shapes</a></li><li><a href="#internals-why-lateral">Why LATERAL</a></li><li><a href="#internals-which-edges-a-step-uses">Which edges a step uses</a></li><li><a href="#internals-limits">Limits</a></li><li><a href="#internals-apache-age">Apache AGE</a></li><li><a href="#internals-tests">Tests</a></li></ul></li><li><a href="#reference" class="top">Reference</a><ul><li><a href="#reference-on-every-model">On every model</a></li><li><a href="#reference-graphquery">GraphQuery</a></li><li><a href="#reference-graphqueryquery">GraphQuery::Query</a></li><li><a href="#reference-graphquerymatch">GraphQuery::Match</a></li><li><a href="#reference-graphquerycypher">GraphQuery::Cypher</a></li><li><a href="#reference-graphquerytransaction">GraphQuery::Transaction</a></li><li><a href="#reference-graphquerygraphql">GraphQuery::GraphQL</a></li><li><a href="#reference-errors">Errors</a></li><li><a href="#reference-types">Types</a></li></ul></li></ul></nav>
+<main><div class="hero"><span class="pill">v0.2.0 &middot; MIT</span><h1>graph_query</h1>
+<p>Declare edges on your models from the associations they already have, walk them in a Ruby chain, a pattern or a Cypher query, and get Active Record relations back. One recursive CTE per walk, nothing to install in the database.</p>
+<pre class="install"><code>gem 'graph_query'</code></pre>
+<p class="links"><a href="https://github.com/lwm-luminx/graph_query">GitHub</a> &middot; <a href="https://rubygems.org/gems/graph_query">RubyGems</a> &middot; <a href="https://github.com/lwm-luminx/graph_query/blob/main/CHANGELOG.md">Changelog</a></p></div>
+<section id="getting-started"><h1>Getting started</h1>
+<p>graph_query lets Active Record models on PostgreSQL be walked like a graph. You declare <strong>edges</strong> on your models from the associations they already have, then <strong>traverse</strong> them in a Ruby chain or match them with a <strong>Cypher-style pattern</strong>. Every walk compiles to one <code>WITH RECURSIVE</code> statement, and what comes back is an ordinary Active Record relation you can keep chaining.</p>
+<p>It needs nothing installed in the database: no Apache AGE, no extension. That is why it runs on Heroku Postgres.</p>
+<h2 id="getting-started-install">Install</h2>
+<div class="sourceCode" id="getting-started-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="getting-started-cb1-1"><span class="co"># Gemfile</span></span>
+<span id="getting-started-cb1-2">gem <span class="vs">&#39;graph_query&#39;</span></span></code></pre></div>
+<p>It needs Ruby 4.0+, Active Record 7.1+ and the <code>pg</code> adapter. Once loaded, every Active Record model gets <code>graph_edge</code>, <code>traverse</code>, <code>graph</code> and <code>graph_match</code>. There is no generator, migration or initializer.</p>
+<h2 id="getting-started-a-first-walk">A first walk</h2>
+<p>The examples in this guide use a small schema of places, venues, events and people.</p>
+<p>Say locales nest (a state contains cities, a city contains neighborhoods) and venues belong to a locale:</p>
+<div class="sourceCode" id="getting-started-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="getting-started-cb2-1"><span class="cf">class</span> <span class="dt">Locale</span> <span class="op">&lt;</span> <span class="dt">ApplicationRecord</span></span>
+<span id="getting-started-cb2-2">  belongs_to <span class="wa">:parent</span>, <span class="wa">class_name:</span> <span class="vs">&#39;Locale&#39;</span>, <span class="wa">optional:</span> <span class="dv">true</span></span>
+<span id="getting-started-cb2-3">  has_many <span class="wa">:children</span>, <span class="wa">class_name:</span> <span class="vs">&#39;Locale&#39;</span>, <span class="wa">foreign_key:</span> <span class="wa">:parent_id</span></span>
+<span id="getting-started-cb2-4">  has_many <span class="wa">:venues</span></span>
+<span id="getting-started-cb2-5"></span>
+<span id="getting-started-cb2-6">  graph_edge <span class="wa">:contains</span>, <span class="wa">association:</span> <span class="wa">:children</span></span>
+<span id="getting-started-cb2-7">  graph_edge <span class="wa">:within</span>, <span class="wa">association:</span> <span class="wa">:parent</span></span>
+<span id="getting-started-cb2-8">  graph_edge <span class="wa">:has_venue</span>, <span class="wa">association:</span> <span class="wa">:venues</span></span>
+<span id="getting-started-cb2-9"><span class="cf">end</span></span></code></pre></div>
+<p>Now walk them:</p>
+<div class="sourceCode" id="getting-started-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="getting-started-cb3-1">washington <span class="op">=</span> <span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">name:</span> <span class="vs">&#39;Washington&#39;</span>)</span>
+<span id="getting-started-cb3-2"></span>
+<span id="getting-started-cb3-3">washington<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)                       <span class="co"># the state and every locale inside it</span></span>
+<span id="getting-started-cb3-4">washington<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:has_venue</span>)  <span class="co"># every venue in the state</span></span>
+<span id="getting-started-cb3-5">          <span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>)<span class="at">.order</span>(<span class="wa">:name</span>)<span class="at">.limit</span>(<span class="dv">20</span>)             <span class="co"># ... still a relation</span></span>
+<span id="getting-started-cb3-6"></span>
+<span id="getting-started-cb3-7">seattle <span class="op">=</span> <span class="dt">Locale</span><span class="at">.find_by</span>(<span class="wa">name:</span> <span class="vs">&#39;Seattle&#39;</span>)</span>
+<span id="getting-started-cb3-8">seattle<span class="at">.traverse</span>(<span class="wa">:within</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>)                            <span class="co"># every locale Seattle lies within</span></span></code></pre></div>
+<p>The same walk as a pattern, and as a Cypher query:</p>
+<div class="sourceCode" id="getting-started-cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="getting-started-cb4-1"><span class="dt">GraphQuery</span><span class="at">.match</span>(<span class="vs">&#39;(s:Locale)-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v:Venue)&#39;</span>, <span class="wa">s:</span> washington)</span>
+<span id="getting-started-cb4-2">          <span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>)</span>
+<span id="getting-started-cb4-3"></span>
+<span id="getting-started-cb4-4"><span class="dt">GraphQuery</span><span class="at">.cypher</span>(<span class="op">&lt;&lt;~</span><span class="cf">CYPHER</span><span class="do">, state: &#39;Washington&#39;)</span></span>
+<span id="getting-started-cb4-5"><span class="do">  MATCH (s:Locale {name: $state})-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v:Venue)</span></span>
+<span id="getting-started-cb4-6"><span class="do">  WHERE v.kind = &#39;bar&#39;</span></span>
+<span id="getting-started-cb4-7"><span class="do">  RETURN v ORDER BY v.name</span></span>
+<span id="getting-started-cb4-8"><span class="cf">CYPHER</span></span></code></pre></div>
+<h2 id="getting-started-the-model-in-one-paragraph">The model in one paragraph</h2>
+<p>A <strong>node</strong> is a row of a model, named by <code>(node_type, node_id)</code>, where the type is the model's <code>polymorphic_name</code>. An <strong>edge</strong> is a named kind of link from nodes of one model to nodes of another, read from a table: each row whose source and target columns are both set is one edge. A <strong>walk</strong> starts from a set of nodes (a relation, a record, or pairs) and takes <strong>steps</strong>; each step follows some edges one or more hops. The nodes the last step reaches are the result.</p>
+<h2 id="getting-started-where-to-go-next">Where to go next</h2>
+<ul>
+<li><a href="#getting-started-declaring-edges">Declaring edges</a>: every way to turn a table into edges.</li>
+<li><a href="#getting-started-walking">Walking</a>: the options a step takes.</li>
+<li><a href="#getting-started-results">Results</a>: relations, depths, pairs, paths, roll-ups and dataloaders.</li>
+<li><a href="#getting-started-patterns">Patterns</a>: the same walks as text, with Ruby bindings.</li>
+<li><a href="#getting-started-cypher">Cypher queries</a>: MATCH, WHERE, RETURN, ORDER BY, SKIP, LIMIT.</li>
+<li><a href="#getting-started-writes">Writing edges</a>: transactions that link and unlink, and graph mutations on models.</li>
+<li><a href="#getting-started-graphql">GraphQL</a>: fields backed by walks, batched, and mutations from graph mutations.</li>
+<li><a href="#getting-started-internals">How it runs</a>: the SQL, performance and limits.</li>
+<li><a href="#getting-started-reference">Reference</a>: every method, errors, and RBS / Sorbet types.</li>
+</ul>
+</section><section id="declaring-edges"><h1>Declaring edges</h1>
+<p>Call <code>graph_edge name, ...</code> on the model the edge <strong>leaves</strong>. The name is a Symbol you pick (<code>:contains</code>, <code>:has_venue</code>, <code>:rolls_up</code>). Several declarations with one name make one kind of edge that unions them, even across models and target types.</p>
+<h2 id="declaring-edges-from-an-association">From an association</h2>
+<p>The usual way. Name an association the model already has, and graph_query reads the edge from the table that holds the foreign key.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Association</th>
+<th>Rows that are edges</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>has_many</code> / <code>has_one</code></td>
+<td>the target's rows, pointing back with the foreign key</td>
+<td><code>graph_edge :contains, association: :children</code></td>
+</tr>
+<tr>
+<td><code>belongs_to</code></td>
+<td>the owner's rows with the foreign key set</td>
+<td><code>graph_edge :within, association: :parent</code></td>
+</tr>
+<tr>
+<td><code>has_many :through</code> a join model that <code>belongs_to</code> the target</td>
+<td>the join model's rows</td>
+<td><code>graph_edge :billed_on, association: :events</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>What carries over from the association:</p>
+<ul>
+<li><strong>Its scope.</strong> <code>has_many :published_posts, -&gt; { where(published: true) }</code> makes edges only to published posts. The scope must not take the owner record (a scope with an argument can't be walked, since there is no one owner).</li>
+<li><strong><code>as:</code></strong> on a polymorphic <code>has_many</code> adds a condition on the type column, so only rows pointing at this model count.</li>
+<li><strong>The join model's scope</strong> on a <code>:through</code> association.</li>
+</ul>
+<p>What can't be an edge (each raises <code>ArgumentError</code> when the edge is first built):</p>
+<ul>
+<li>A polymorphic <code>belongs_to</code>: it has no one target model. Declare one edge per target with <code>through:</code> or <code>sql:</code>.</li>
+<li>A <code>:through</code> association with its own scope: that scope filters the target, not the join rows. Use <code>through:</code> with <code>where:</code> instead.</li>
+<li>A <code>:through</code> chain through another <code>:through</code>, or one whose source isn't a <code>belongs_to</code>.</li>
+</ul>
+<h2 id="declaring-edges-from-a-join-model-named-outright">From a join model, named outright</h2>
+<p>When there's no association, or you need a different shape, name the table's model and its two columns:</p>
+<div class="sourceCode" id="declaring-edges-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="declaring-edges-cb1-1"><span class="cf">class</span> <span class="dt">Locale</span> <span class="op">&lt;</span> <span class="dt">ApplicationRecord</span></span>
+<span id="declaring-edges-cb1-2">  graph_edge <span class="wa">:contains</span>, <span class="wa">to:</span> <span class="dt">Locale</span>, <span class="wa">through:</span> <span class="dt">LocaleGrouping</span>,</span>
+<span id="declaring-edges-cb1-3">                        <span class="wa">source:</span> <span class="wa">:super_locale_id</span>, <span class="wa">target:</span> <span class="wa">:member_locale_id</span></span>
+<span id="declaring-edges-cb1-4"><span class="cf">end</span></span></code></pre></div>
+<ul>
+<li><code>to:</code> the model the edge arrives at.</li>
+<li><code>through:</code> the model whose table holds the rows. It can be the target itself: <code>graph_edge :rolls_up, to: EventSeries, through: EventSeries, source: :locale_id, target: :id</code>.</li>
+<li><code>source:</code> the column holding the id of the node the edge leaves (defaults to the model's <code>foreign_key</code>).</li>
+<li><code>target:</code> the column holding the id of the node it arrives at.</li>
+</ul>
+<p><code>to:</code> and <code>through:</code> take a class, which keeps them checked by Ruby and by type checkers, or a model name as a String. A class loads that model when this one loads; a name is looked up only when a query first needs the edge, so use one to break a load-order cycle or to name a model that may not exist in every app.</p>
+<h2 id="declaring-edges-from-sql">From SQL</h2>
+<p>For anything else, give SQL selecting <code>source_id</code> and <code>target_id</code>:</p>
+<div class="sourceCode" id="declaring-edges-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="declaring-edges-cb2-1"><span class="cf">class</span> <span class="dt">Venue</span> <span class="op">&lt;</span> <span class="dt">ApplicationRecord</span></span>
+<span id="declaring-edges-cb2-2">  graph_edge <span class="wa">:near</span>, <span class="wa">to:</span> <span class="dt">Venue</span>, <span class="wa">sql:</span> <span class="op">&lt;&lt;~</span><span class="cn">SQL</span></span>
+<span id="declaring-edges-cb2-3">    <span class="cn">SELECT</span> a<span class="at">.id</span> <span class="cn">AS</span> source_id, b<span class="at">.id</span> <span class="cn">AS</span> target_id</span>
+<span id="declaring-edges-cb2-4">    <span class="cn">FROM</span> venues a <span class="cn">JOIN</span> venues b <span class="cn">ON</span> a<span class="at">.id</span> <span class="op">&lt;&gt;</span> b<span class="at">.id</span> <span class="cn">AND</span> <span class="dt">ST_DWithin</span>(a<span class="at">.location</span>, b<span class="at">.location</span>, <span class="dv">500</span>)</span>
+<span id="declaring-edges-cb2-5">  <span class="cn">SQL</span></span>
+<span id="declaring-edges-cb2-6"><span class="cf">end</span></span></code></pre></div>
+<p>SQL edges can't take <code>edge_where:</code> filters (there's no model to check columns against), and the planner can only use indexes if it can push the <code>source_id = ...</code> condition into your SQL.</p>
+<h2 id="declaring-edges-computed-edges">Computed edges</h2>
+<p>When the SQL depends on something known only when the query runs (the current time, a setting, a scope built in Ruby), give a callable instead. It runs each time a query is built, and returns a relation or a String that selects <code>source_id</code> and <code>target_id</code>:</p>
+<div class="sourceCode" id="declaring-edges-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="declaring-edges-cb3-1"><span class="cf">class</span> <span class="dt">Venue</span> <span class="op">&lt;</span> <span class="dt">ApplicationRecord</span></span>
+<span id="declaring-edges-cb3-2">  <span class="co"># Pass it as computed:</span></span>
+<span id="declaring-edges-cb3-3">  graph_edge <span class="wa">:open_with</span>, <span class="wa">to:</span> <span class="dt">Venue</span>, <span class="wa">computed:</span> <span class="fu">lambda</span> <span class="op">{</span></span>
+<span id="declaring-edges-cb3-4">    <span class="dt">VenuePair</span><span class="at">.where</span>(<span class="vs">&#39;opens_at &lt;= ? AND closes_at &gt; ?&#39;</span>, <span class="dt">Time</span><span class="at">.current</span>, <span class="dt">Time</span><span class="at">.current</span>)</span>
+<span id="declaring-edges-cb3-5">             <span class="at">.select</span>(<span class="vs">&#39;venue_a_id AS source_id, venue_b_id AS target_id&#39;</span>)</span>
+<span id="declaring-edges-cb3-6">  <span class="op">}</span></span>
+<span id="declaring-edges-cb3-7"></span>
+<span id="declaring-edges-cb3-8">  <span class="co"># or as a block</span></span>
+<span id="declaring-edges-cb3-9">  graph_edge(<span class="wa">:same_locale</span>, <span class="wa">to:</span> <span class="dt">Venue</span>) <span class="cf">do</span></span>
+<span id="declaring-edges-cb3-10">    <span class="dt">Venue</span><span class="at">.joins</span>(<span class="vs">&#39;JOIN venues other ON other.locale_id = venues.locale_id AND other.id &lt;&gt; venues.id&#39;</span>)</span>
+<span id="declaring-edges-cb3-11">         <span class="at">.select</span>(<span class="vs">&#39;venues.id AS source_id, other.id AS target_id&#39;</span>)</span>
+<span id="declaring-edges-cb3-12">  <span class="cf">end</span></span>
+<span id="declaring-edges-cb3-13"><span class="cf">end</span></span></code></pre></div>
+<p>The result is compiled into the walk's one statement like any other edge. The callable only builds the SQL: it isn't called once per node, so it can't run Ruby on each row. Computed edges, like SQL edges, take no <code>edge_where:</code> and can't be written by a <a href="#declaring-edges-writes">transaction</a>.</p>
+<h2 id="declaring-edges-filtering-an-edges-rows-where">Filtering an edge's rows: <code>where:</code></h2>
+<p>Every form takes <code>where:</code>, a Hash or a scope Proc run on the edge's table:</p>
+<div class="sourceCode" id="declaring-edges-cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="declaring-edges-cb4-1">graph_edge <span class="wa">:headlines</span>, <span class="wa">association:</span> <span class="wa">:event_people</span>, <span class="wa">where:</span> <span class="op">{</span> <span class="wa">role:</span> <span class="vs">&#39;headliner&#39;</span> <span class="op">}</span></span>
+<span id="declaring-edges-cb4-2">graph_edge <span class="wa">:current_members</span>, <span class="wa">to:</span> <span class="dt">Person</span>, <span class="wa">through:</span> <span class="dt">Membership</span>, <span class="wa">source:</span> <span class="wa">:group_id</span>, <span class="wa">target:</span> <span class="wa">:person_id</span>,</span>
+<span id="declaring-edges-cb4-3">                             <span class="wa">where:</span> <span class="op">-&gt;</span> <span class="op">{</span> where(<span class="wa">ended_at:</span> <span class="dv">nil</span>) <span class="op">}</span></span></code></pre></div>
+<h2 id="declaring-edges-unions">Unions</h2>
+<p>Declarations with the same name are one edge kind. A walk over <code>:contains</code> follows both of these:</p>
+<div class="sourceCode" id="declaring-edges-cb5"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="declaring-edges-cb5-1">graph_edge <span class="wa">:contains</span>, <span class="wa">association:</span> <span class="wa">:children</span>                       <span class="co"># a locale&#39;s sub-locales</span></span>
+<span id="declaring-edges-cb5-2">graph_edge <span class="wa">:contains</span>, <span class="wa">to:</span> <span class="dt">Locale</span>, <span class="wa">through:</span> <span class="dt">LocaleGrouping</span>,          <span class="co"># and, for a super locale, its members</span></span>
+<span id="declaring-edges-cb5-3">                      <span class="wa">source:</span> <span class="wa">:super_locale_id</span>, <span class="wa">target:</span> <span class="wa">:member_locale_id</span></span></code></pre></div>
+<p>Edges with one name can also arrive at different models: a <code>:rolls_up</code> edge can go from a venue to its events <strong>and</strong> its event series.</p>
+<h2 id="declaring-edges-when-edges-are-built">When edges are built</h2>
+<p>Declarations are lazy. They're stored as builders and turned into edges the first time a query needs them, so a declaration may name a model that isn't loaded yet, and model classes can be declared in any order. When Rails reloads a model, its declarations replace the old ones instead of adding to them.</p>
+<p>To see what's declared:</p>
+<div class="sourceCode" id="declaring-edges-cb6"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="declaring-edges-cb6-1"><span class="dt">GraphQuery</span><span class="at">.registry.all</span></span>
+<span id="declaring-edges-cb6-2"><span class="co"># =&gt; [#&lt;GraphQuery::Edge Locale -[:contains]-&gt; Locale&gt;, #&lt;GraphQuery::Edge Locale -[:within]-&gt; Locale&gt;, ...]</span></span></code></pre></div>
+<h2 id="declaring-edges-ids">Ids</h2>
+<p>Node ids in one walk must share a SQL type, because each step's rows are unioned into one <code>node_id</code> column. Use uuid everywhere, or bigint everywhere.</p>
+</section><section id="walking"><h1>Walking</h1>
+<p>Start a walk from a scope, a record, or a whole model, and add steps with <code>traverse</code>:</p>
+<div class="sourceCode" id="walking-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb1-1"><span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">name:</span> <span class="vs">&#39;Washington&#39;</span>)<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)   <span class="co"># from a scope</span></span>
+<span id="walking-cb1-2">locale<span class="at">.traverse</span>(<span class="wa">:within</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>)                               <span class="co"># from one record</span></span>
+<span id="walking-cb1-3"><span class="dt">Venue</span><span class="at">.traverse</span>(<span class="wa">:hosts</span>)                                             <span class="co"># from every row of a model</span></span></code></pre></div>
+<p>Each <code>traverse</code> returns a new <code>GraphQuery::Query</code> (queries are immutable), so steps chain:</p>
+<div class="sourceCode" id="walking-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb2-1"><span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">name:</span> <span class="vs">&#39;Washington&#39;</span>)</span>
+<span id="walking-cb2-2">      <span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)    <span class="co"># step 1: the state and everything in it</span></span>
+<span id="walking-cb2-3">      <span class="at">.traverse</span>(<span class="wa">:has_venue</span>)               <span class="co"># step 2: their venues</span></span>
+<span id="walking-cb2-4">      <span class="at">.traverse</span>(<span class="wa">:hosts</span>, <span class="wa">to:</span> <span class="dt">Event</span>)        <span class="co"># step 3: the events those venues host</span></span></code></pre></div>
+<h2 id="walking-traversenames--nil-options"><code>traverse(names = nil, **options)</code></h2>
+<p><code>names</code> is a Symbol, an Array of Symbols (follow any of them), or <code>nil</code> / <code>:*</code> for every edge leaving the current nodes.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Default</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>depth:</code></td>
+<td><code>1</code></td>
+<td>Hops, as an Integer or a Range. See below.</td>
+</tr>
+<tr>
+<td><code>direction:</code></td>
+<td><code>:out</code></td>
+<td><code>:out</code> (source to target), <code>:in</code> (target to source: ancestors, "who points at this"), or <code>:both</code>.</td>
+</tr>
+<tr>
+<td><code>to:</code></td>
+<td>any</td>
+<td>Only arrive at these models: a model, a name, or an Array.</td>
+</tr>
+<tr>
+<td><code>where:</code></td>
+<td>none</td>
+<td>Only arrive at nodes in this relation. An Array gives one relation per model (any may match). A Hash filters the one model the step reaches.</td>
+</tr>
+<tr>
+<td><code>through:</code></td>
+<td>none</td>
+<td>Every node the step passes through, the last included, must be in this relation (or Array, one per model). Nodes of other models pass freely.</td>
+</tr>
+<tr>
+<td><code>edge_where:</code></td>
+<td>none</td>
+<td>A Hash (or scope Proc) each edge's row must match.</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="walking-depth">depth</h3>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Reaches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td>nodes one hop away (the default)</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td>nodes exactly three hops away</td>
+</tr>
+<tr>
+<td><code>1..3</code></td>
+<td>one to three hops away</td>
+</tr>
+<tr>
+<td><code>0..</code></td>
+<td>the start nodes and everything reachable</td>
+</tr>
+<tr>
+<td><code>1..</code></td>
+<td>everything reachable, not the start nodes</td>
+</tr>
+<tr>
+<td><code>2..</code></td>
+<td>everything at least two hops away</td>
+</tr>
+<tr>
+<td><code>0..1</code></td>
+<td>the start nodes and their neighbours</td>
+</tr>
+</tbody>
+</table></div>
+<p>A node counts if <strong>some</strong> route reaches it within the range. Walks that can go on forever (<code>1..</code>, <code>0..</code>) stop when no new node turns up, so cycles end them. Unbounded walks that have to count hops (<code>2..</code>, <code>with_depth</code>, <code>paths</code>) stop at <code>GraphQuery.max_depth</code>, 32 by default:</p>
+<div class="sourceCode" id="walking-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb3-1"><span class="dt">GraphQuery</span><span class="at">.max_depth</span> <span class="op">=</span> <span class="dv">64</span></span></code></pre></div>
+<h3 id="walking-direction">direction</h3>
+<p><code>:in</code> walks an edge backwards. With only <code>:contains</code> declared, you still get ancestors:</p>
+<div class="sourceCode" id="walking-cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb4-1">seattle<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">direction:</span> <span class="wa">:in</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>)   <span class="co"># everything that contains Seattle</span></span></code></pre></div>
+<p><code>out</code>, <code>inbound</code> and <code>both</code> are shorthands:</p>
+<div class="sourceCode" id="walking-cb5"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb5-1">query<span class="at">.out</span>(<span class="wa">:contains</span>)       <span class="co"># traverse(:contains, direction: :out)</span></span>
+<span id="walking-cb5-2">query<span class="at">.inbound</span>(<span class="wa">:contains</span>)   <span class="co"># traverse(:contains, direction: :in)</span></span>
+<span id="walking-cb5-3">query<span class="at">.both</span>(<span class="wa">:knows</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span><span class="dv">2</span>)</span></code></pre></div>
+<h3 id="walking-to-where-through">to:, where:, through:</h3>
+<p><code>to:</code> and <code>where:</code> filter where the step <strong>arrives</strong>; the walk still passes through other nodes on the way:</p>
+<div class="sourceCode" id="walking-cb6"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb6-1"><span class="co"># Every bar anywhere under Washington, but walk through every locale to find them.</span></span>
+<span id="walking-cb6-2">washington<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:has_venue</span>, <span class="wa">where:</span> <span class="dt">Venue</span><span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>))</span>
+<span id="walking-cb6-3"></span>
+<span id="walking-cb6-4"><span class="co"># The same with a Hash, because the step reaches one model.</span></span>
+<span id="walking-cb6-5">washington<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:has_venue</span>, <span class="wa">where:</span> <span class="op">{</span> <span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span> <span class="op">}</span>)</span>
+<span id="walking-cb6-6"></span>
+<span id="walking-cb6-7"><span class="co"># A step whose edges reach several models: arrive only at events.</span></span>
+<span id="walking-cb6-8">venue<span class="at">.traverse</span>(<span class="wa">:rolls_up</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>, <span class="wa">to:</span> <span class="dt">Event</span>)</span></code></pre></div>
+<p><code>through:</code> filters every node <strong>on the way</strong> (Cypher's <code>all(n IN nodes(p) WHERE ...)</code>). A node outside the relation stops the walk there:</p>
+<div class="sourceCode" id="walking-cb7"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb7-1"><span class="co"># Only descend through active locales; a retired county hides everything under it.</span></span>
+<span id="walking-cb7-2">washington<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>, <span class="wa">through:</span> <span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">retired_at:</span> <span class="dv">nil</span>))</span></code></pre></div>
+<h3 id="walking-edge_where">edge_where:</h3>
+<p>Filters the edge rows themselves:</p>
+<div class="sourceCode" id="walking-cb8"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb8-1">event<span class="at">.traverse</span>(<span class="wa">:billed</span>, <span class="wa">edge_where:</span> <span class="op">{</span> <span class="wa">role:</span> <span class="vs">&#39;headliner&#39;</span> <span class="op">}</span>)</span>
+<span id="walking-cb8-2">person<span class="at">.traverse</span>(<span class="wa">:member_of</span>, <span class="wa">edge_where:</span> <span class="op">-&gt;</span> <span class="op">{</span> where(<span class="wa">ended_at:</span> <span class="dv">nil</span>) <span class="op">}</span>)</span></code></pre></div>
+<p>Like a missing property in Cypher, an edge kept in a table without the filter's columns doesn't match it, so a union edge is narrowed to the parts that have the column. SQL edges match no filter.</p>
+<h2 id="walking-starting-elsewhere">Starting elsewhere</h2>
+<div class="sourceCode" id="walking-cb9"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="walking-cb9-1"><span class="dt">GraphQuery</span><span class="at">.from</span>(<span class="dt">Venue</span><span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>))                 <span class="co"># any relation, record or model</span></span>
+<span id="walking-cb9-2"><span class="dt">GraphQuery</span><span class="at">.from_pairs</span>(<span class="kw">[[</span><span class="dt">Venue</span>, venue_id<span class="kw">]</span>, <span class="kw">[</span><span class="vs">&#39;Person&#39;</span>, person_id<span class="kw">]]</span>)   <span class="co"># nodes of several models at once</span></span>
+<span id="walking-cb9-3"><span class="dt">GraphQuery</span><span class="at">.from_query</span>(other_query)                        <span class="co"># the nodes another walk reached</span></span>
+<span id="walking-cb9-4"><span class="dt">Locale</span><span class="at">.where</span>(<span class="op">...</span>)<span class="at">.graph</span>                                   <span class="co"># a Query that hasn&#39;t moved yet; chain .out/.inbound</span></span></code></pre></div>
+<h2 id="walking-errors">Errors</h2>
+<ul>
+<li><code>GraphQuery::NoEdges</code>: the step names edges that don't leave the nodes it starts on (<code>no has_venue (out) from Person</code>), or its <code>to:</code> can't be reached. A step with <code>depth: 0..</code> from nodes with no such edges isn't an error: it keeps the nodes it started on.</li>
+<li><code>GraphQuery::AmbiguousResult</code>: you asked for a relation, but the walk reaches several models. Name one, add <code>to:</code>, or use <code>pairs</code> / <code>records</code> / <code>polymorphic</code>.</li>
+<li><code>ArgumentError</code>: a bad <code>depth:</code> or <code>direction:</code>.</li>
+</ul>
+</section><section id="results"><h1>Results</h1>
+<p>A walk doesn't run until you ask for something. What you can ask for:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Gives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>relation methods (<code>where</code>, <code>order</code>, <code>pluck</code>, <code>count</code>, <code>each</code>, <code>find_each</code>, <code>exists?</code>, ...)</td>
+<td>the reached nodes, as a relation (the walk must reach one model)</td>
+</tr>
+<tr>
+<td><code>to_relation(Model)</code> / <code>nodes(Model)</code></td>
+<td>the reached nodes of one model, as a relation</td>
+</tr>
+<tr>
+<td><code>with_depth(Model)</code></td>
+<td>that relation plus <code>graph_depth</code>, the fewest hops in the last step</td>
+</tr>
+<tr>
+<td><code>pairs</code></td>
+<td><code>[[type, id], ...]</code> for every node reached, whatever its model</td>
+</tr>
+<tr>
+<td><code>records</code></td>
+<td>every node reached, loaded, whatever its model</td>
+</tr>
+<tr>
+<td><code>polymorphic(scope, :name)</code></td>
+<td>rows of <code>scope</code> whose polymorphic association points at a reached node</td>
+</tr>
+<tr>
+<td><code>by_origin(Model)</code></td>
+<td><code>{start id =&gt; [reached records]}</code></td>
+</tr>
+<tr>
+<td><code>origin_pairs(Model)</code></td>
+<td><code>[[start id, reached id], ...]</code>, unloaded</td>
+</tr>
+<tr>
+<td><code>paths</code></td>
+<td>every simple path, <code>[[type, id], ...]</code> from start to end</td>
+</tr>
+<tr>
+<td><code>to_sql(origin:, depth:, path:)</code></td>
+<td>the statement</td>
+</tr>
+<tr>
+<td><code>types</code></td>
+<td>the model names the walk can end on</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="results-relations">Relations</h2>
+<p>When the last step reaches one model, a Query acts as a relation of it:</p>
+<div class="sourceCode" id="results-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb1-1">venues <span class="op">=</span> washington<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:has_venue</span>)</span>
+<span id="results-cb1-2">venues<span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>)<span class="at">.order</span>(<span class="wa">:name</span>)<span class="at">.limit</span>(<span class="dv">10</span>)<span class="at">.to_a</span></span>
+<span id="results-cb1-3">venues<span class="at">.count</span></span>
+<span id="results-cb1-4">venues<span class="at">.pluck</span>(<span class="wa">:id</span>)</span>
+<span id="results-cb1-5">venues<span class="at">.includes</span>(<span class="wa">:locale</span>)<span class="at">.find_each</span> <span class="op">{</span> <span class="op">...</span> <span class="op">}</span></span></code></pre></div>
+<p>Under the hood that's <code>Venue.where(id: &lt;the walk&gt;)</code>, so it composes with scopes, joins, <code>merge</code> and pagination. If the walk can reach several models, pick one: <code>query.to_relation(Event)</code>.</p>
+<h2 id="results-depth">Depth</h2>
+<p><code>with_depth</code> joins the walk and selects each node's hop count in the last step as <code>graph_depth</code>:</p>
+<div class="sourceCode" id="results-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb2-1">seattle<span class="at">.traverse</span>(<span class="wa">:within</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>)<span class="at">.with_depth</span></span>
+<span id="results-cb2-2">       <span class="at">.reorder</span>(<span class="dt">Arel</span><span class="at">.sql</span>(<span class="vs">&#39;graph_query_nodes.depth DESC&#39;</span>))    <span class="co"># outermost first</span></span>
+<span id="results-cb2-3">       <span class="at">.pluck</span>(<span class="wa">:id</span>)</span></code></pre></div>
+<p>Order by <code>graph_query_nodes.depth</code> rather than <code>graph_depth</code>: the alias doesn't survive <code>pluck</code>.</p>
+<h2 id="results-several-models">Several models</h2>
+<div class="sourceCode" id="results-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb3-1">walk <span class="op">=</span> venue<span class="at">.traverse</span>(<span class="wa">:rolls_up</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span>)   <span class="co"># events and event series</span></span>
+<span id="results-cb3-2">walk<span class="at">.types</span>     <span class="co"># =&gt; [&quot;Event&quot;, &quot;EventSeries&quot;]</span></span>
+<span id="results-cb3-3">walk<span class="at">.pairs</span>     <span class="co"># =&gt; [[&quot;Event&quot;, &quot;4c1...&quot;], [&quot;EventSeries&quot;, &quot;9ae...&quot;], ...]</span></span>
+<span id="results-cb3-4">walk<span class="at">.records</span>   <span class="co"># =&gt; [#&lt;Event ...&gt;, #&lt;EventSeries ...&gt;, ...] (one query per model)</span></span></code></pre></div>
+<h2 id="results-roll-ups-polymorphic">Roll-ups: <code>polymorphic</code></h2>
+<p>Given a scope of rows with a polymorphic association, keep those pointing at any node the walk reaches. This is how "everything linked to anything under this venue" works:</p>
+<div class="sourceCode" id="results-cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb4-1">venue<span class="at">.traverse</span>(<span class="wa">:rolls_up</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)</span>
+<span id="results-cb4-2">     <span class="at">.polymorphic</span>(<span class="dt">EntityLink</span><span class="at">.where</span>(<span class="wa">audience_id:</span>), <span class="wa">:target</span>)   <span class="co"># target_type / target_id</span></span>
+<span id="results-cb4-3">     <span class="at">.order</span>(<span class="wa">created_at:</span> <span class="wa">:desc</span>)</span></code></pre></div>
+<p>The association's <code>foreign_type</code> / <code>foreign_key</code> are used if it's declared; otherwise <code>name_type</code> / <code>name_id</code>.</p>
+<h2 id="results-batching-many-starts-by_origin">Batching many starts: <code>by_origin</code></h2>
+<p>Walk from many nodes in one statement and group what each reached, for a GraphQL dataloader:</p>
+<div class="sourceCode" id="results-cb5"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb5-1"><span class="cf">class</span> <span class="dt">LocalPeopleSource</span> <span class="op">&lt;</span> <span class="dt">GraphQL</span><span class="op">::</span><span class="dt">Dataloader</span><span class="op">::</span><span class="dt">Source</span></span>
+<span id="results-cb5-2">  <span class="cf">def</span> fetch(locale_ids)</span>
+<span id="results-cb5-3">    found <span class="op">=</span> <span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">id:</span> locale_ids)<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:features</span>)<span class="at">.by_origin</span>(<span class="dt">Person</span>)</span>
+<span id="results-cb5-4">    locale_ids<span class="at">.map</span> <span class="op">{</span> found<span class="at">.fetch</span>(it, <span class="kw">[]</span>) <span class="op">}</span></span>
+<span id="results-cb5-5">  <span class="cf">end</span></span>
+<span id="results-cb5-6"><span class="cf">end</span></span></code></pre></div>
+<p><code>origin_pairs</code> gives the same as <code>[[locale_id, person_id], ...]</code> without loading anything.</p>
+<h2 id="results-paths">Paths</h2>
+<div class="sourceCode" id="results-cb6"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb6-1"><span class="dt">GraphQuery</span><span class="at">.from</span>(person)<span class="at">.traverse</span>(<span class="wa">:knows</span>, <span class="wa">depth:</span> <span class="dv">1</span><span class="op">..</span><span class="dv">3</span>)<span class="at">.paths</span></span>
+<span id="results-cb6-2"><span class="co"># =&gt; [[[&quot;Person&quot;, &quot;a&quot;], [&quot;Person&quot;, &quot;b&quot;]], [[&quot;Person&quot;, &quot;a&quot;], [&quot;Person&quot;, &quot;b&quot;], [&quot;Person&quot;, &quot;c&quot;]], ...]</span></span></code></pre></div>
+<p>Paths never revisit a node. Rows are routes, not nodes, so their number can grow fast: use <code>paths</code> to show a route, not on big graphs.</p>
+<h2 id="results-sql">SQL</h2>
+<div class="sourceCode" id="results-cb7"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb7-1">query<span class="at">.to_sql</span>                 <span class="co"># node_type, node_id</span></span>
+<span id="results-cb7-2">query<span class="at">.to_sql</span>(<span class="wa">origin:</span> <span class="dv">true</span>)   <span class="co"># + origin_type, origin_id (the start node each row came from)</span></span>
+<span id="results-cb7-3">query<span class="at">.to_sql</span>(<span class="wa">depth:</span> <span class="dv">true</span>)    <span class="co"># + depth (fewest hops in the last step)</span></span>
+<span id="results-cb7-4">query<span class="at">.to_sql</span>(<span class="wa">path:</span> <span class="dv">true</span>)     <span class="co"># + path (&#39;Type:id&#39; text[])</span></span></code></pre></div>
+<p>Use it for <code>EXPLAIN ANALYZE</code>, or to join a walk by hand:</p>
+<div class="sourceCode" id="results-cb8"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="results-cb8-1"><span class="dt">Event</span><span class="at">.joins</span>(<span class="st">&quot;JOIN (</span><span class="sc">#{</span>walk<span class="at">.to_sql</span><span class="sc">}</span><span class="st">) g ON g.node_type = &#39;Event&#39; AND g.node_id = events.id&quot;</span>)</span></code></pre></div>
+</section><section id="patterns"><h1>Patterns</h1>
+<p><code>GraphQuery.match(pattern, **bindings)</code> runs a linear Cypher-style pattern with Ruby bindings. For a whole Cypher query as text (<code>MATCH ... WHERE ... RETURN</code>), see <a href="#patterns-cypher">Cypher queries</a>. It builds the same steps as <code>traverse</code>, so everything about walks applies.</p>
+<div class="sourceCode" id="patterns-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="patterns-cb1-1"><span class="dt">GraphQuery</span><span class="at">.match</span>(</span>
+<span id="patterns-cb1-2">  <span class="vs">&#39;(s:Locale)-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v:Venue)-[:hosts]-&gt;(e:Event)&lt;-[:billed_on]-(p:Person)&#39;</span>,</span>
+<span id="patterns-cb1-3">  <span class="wa">s:</span> <span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">name:</span> <span class="vs">&#39;Washington&#39;</span>),</span>
+<span id="patterns-cb1-4">  <span class="wa">e:</span> <span class="dt">Event</span><span class="at">.upcoming</span></span>
+<span id="patterns-cb1-5">)<span class="at">.nodes</span>(<span class="wa">:v</span>)   <span class="co"># venues in Washington where someone is billed on an upcoming event</span></span></code></pre></div>
+<p>From a scope, the scope binds the first node:</p>
+<div class="sourceCode" id="patterns-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="patterns-cb2-1"><span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">name:</span> <span class="vs">&#39;Seattle&#39;</span>)<span class="at">.graph_match</span>(<span class="vs">&#39;(l)-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v:Venue)&#39;</span>)</span></code></pre></div>
+<h2 id="patterns-syntax">Syntax</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>(v)</code>, <code>(v:Venue)</code>, `(:Venue</td>
+<td>Event)<code>, </code>()`</td>
+</tr>
+<tr>
+<td><code>(v:Venue {kind: 'bar', city: $city})</code></td>
+<td>a node whose columns match a property map</td>
+</tr>
+<tr>
+<td><code>-[:billed_on {role: 'headliner'}]-&gt;</code></td>
+<td>edges whose rows match a property map</td>
+</tr>
+<tr>
+<td><code>-[:has_venue]-&gt;</code></td>
+<td>one hop out along <code>has_venue</code></td>
+</tr>
+<tr>
+<td><code>&lt;-[:hosts]-</code></td>
+<td>one hop in (walk <code>hosts</code> backwards)</td>
+</tr>
+<tr>
+<td><code>-[:knows]-</code></td>
+<td>one hop either way</td>
+</tr>
+<tr>
+<td>`-[r:billed_on</td>
+<td>hosts]-&gt;`</td>
+</tr>
+<tr>
+<td><code>--&gt;</code>, <code>&lt;--</code>, <code>--</code></td>
+<td>any edge, one hop</td>
+</tr>
+<tr>
+<td><code>*</code></td>
+<td>one or more hops</td>
+</tr>
+<tr>
+<td><code>*2</code></td>
+<td>exactly two</td>
+</tr>
+<tr>
+<td><code>*1..3</code>, <code>*..3</code></td>
+<td>one to three</td>
+</tr>
+<tr>
+<td><code>*0..</code></td>
+<td>zero or more (the node itself too)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Names may be written as in Cypher: <code>CONTAINS</code> and <code>hasVenue</code> match <code>:contains</code> and <code>:has_venue</code>. Labels are model names (<code>event_series</code> and <code>EventSeries</code> both work).</p>
+<h2 id="patterns-bindings">Bindings</h2>
+<p>There's no <code>WHERE</code> or <code>RETURN</code> text. Bind variables instead:</p>
+<ul>
+<li><strong>A node variable</strong> to a relation (or record, or model): the node must be in it. <code>v: Venue.where(kind: 'bar')</code>.</li>
+<li><strong>A relationship variable</strong> to a Hash or scope Proc: an <code>edge_where:</code> on that step. <code>GraphQuery.match('(e:Event)&lt;-[b:billed_on]-(p:Person)', e: event, b: { role: 'headliner' })</code>.</li>
+</ul>
+<p>Property maps do the same job inline. Their values are literals (<code>'text'</code>, <code>42</code>, <code>1.5</code>, <code>true</code>, <code>null</code>, <code>[...]</code>) or <code>$params</code>, read from <code>params:</code>:</p>
+<div class="sourceCode" id="patterns-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="patterns-cb3-1"><span class="dt">GraphQuery</span><span class="at">.match</span>(<span class="st">&quot;(s:Locale {name: $state})-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v:Venue {kind: &#39;bar&#39;})&quot;</span>,</span>
+<span id="patterns-cb3-2">                 <span class="wa">params:</span> <span class="op">{</span> <span class="wa">state:</span> <span class="vs">&#39;Washington&#39;</span> <span class="op">}</span>)</span></code></pre></div>
+<p>A node with a property map needs one label or a binding, so graph_query knows which table the columns are in.</p>
+<p>The first node must be bound or have exactly one label (<code>(s:Locale)</code> alone starts from every locale).</p>
+<h2 id="patterns-results">Results</h2>
+<p>A Match acts as a relation of the <strong>last</strong> node's matches, like a Query. For another node, use <code>nodes(:var)</code>:</p>
+<div class="sourceCode" id="patterns-cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="patterns-cb4-1">match <span class="op">=</span> <span class="dt">GraphQuery</span><span class="at">.match</span>(<span class="vs">&#39;(s:Locale)-[:contains*0..]-&gt;(l)-[:has_venue]-&gt;(v:Venue)&#39;</span>, <span class="wa">s:</span> washington,</span>
+<span id="patterns-cb4-2">                         <span class="wa">v:</span> <span class="dt">Venue</span><span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>))</span>
+<span id="patterns-cb4-3">match<span class="at">.count</span>          <span class="co"># bars</span></span>
+<span id="patterns-cb4-4">match<span class="at">.nodes</span>(<span class="wa">:l</span>)      <span class="co"># only the locales that have a bar under them</span></span>
+<span id="patterns-cb4-5">match<span class="at">.paths</span>          <span class="co"># each full route</span></span>
+<span id="patterns-cb4-6">match<span class="at">.query</span>          <span class="co"># the underlying GraphQuery::Query</span></span></code></pre></div>
+<p>A variable in the middle counts only nodes that lie on a full match: graph_query walks forward to that node, walks back from the end of every full match to it, and keeps the overlap.</p>
+<h2 id="patterns-beyond-one-path">Beyond one path</h2>
+<p>More than one path, <code>WHERE</code>, <code>RETURN</code>, <code>ORDER BY</code>, <code>SKIP</code> and <code>LIMIT</code>: <a href="#patterns-cypher">Cypher queries</a> take those. For anything else, chain <code>traverse</code> steps or use <code>from_query</code> to start a second walk from the first one's result.</p>
+</section><section id="cypher"><h1>Cypher queries</h1>
+<p><code>GraphQuery.cypher(query, **params)</code> runs a read-only Cypher query on the same walker as <code>traverse</code>: no Apache AGE, no extension, one <code>WITH RECURSIVE</code> per path.</p>
+<div class="sourceCode" id="cypher-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="cypher-cb1-1"><span class="dt">GraphQuery</span><span class="at">.cypher</span>(<span class="op">&lt;&lt;~</span><span class="cf">CYPHER</span><span class="do">, state: &#39;Washington&#39;, limit: 10)</span></span>
+<span id="cypher-cb1-2"><span class="do">  MATCH (s:Locale {name: $state})-[:contains*0..]-&gt;(c:Locale)-[:has_venue]-&gt;(v:Venue)</span></span>
+<span id="cypher-cb1-3"><span class="do">  WHERE c.kind = &#39;city&#39; AND v.name STARTS WITH &#39;The&#39; AND NOT v.closed</span></span>
+<span id="cypher-cb1-4"><span class="do">  RETURN v</span></span>
+<span id="cypher-cb1-5"><span class="do">  ORDER BY v.name</span></span>
+<span id="cypher-cb1-6"><span class="do">  LIMIT $limit</span></span>
+<span id="cypher-cb1-7"><span class="cf">CYPHER</span></span>
+<span id="cypher-cb1-8"><span class="co"># =&gt; a Venue relation, still chainable</span></span></code></pre></div>
+<h2 id="cypher-clauses">Clauses</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Clause</th>
+<th>Takes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MATCH</code></td>
+<td>one or more <a href="#cypher-patterns">patterns</a>, comma-separated or in several <code>MATCH</code> clauses</td>
+</tr>
+<tr>
+<td><code>WHERE</code></td>
+<td>conditions on node properties (after any <code>MATCH</code>; several are ANDed)</td>
+</tr>
+<tr>
+<td><code>RETURN</code></td>
+<td><code>v</code>, <code>v.name, v.kind</code> (with optional <code>AS</code>), <code>count(*)</code>, <code>count(v)</code>, <code>count(DISTINCT v)</code>; <code>DISTINCT</code></td>
+</tr>
+<tr>
+<td><code>ORDER BY</code></td>
+<td><code>v.name</code>, <code>toLower(v.name) DESC</code>, several</td>
+</tr>
+<tr>
+<td><code>SKIP</code>, <code>LIMIT</code></td>
+<td>a whole number or a <code>$param</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Labels are model names; relationship types are edge names (<code>HAS_VENUE</code> and <code>hasVenue</code> both match <code>:has_venue</code>). Properties are the model's columns. Keywords are case-insensitive, <code>//</code> starts a comment, and a trailing <code>;</code> is fine.</p>
+<h2 id="cypher-where">WHERE</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Condition</th>
+<th>SQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v.x = 1</code>, <code>&lt;&gt;</code>, <code>!=</code>, <code>&lt;</code>, <code>&lt;=</code>, <code>&gt;</code>, <code>&gt;=</code></td>
+<td>comparisons (<code>= null</code> is <code>IS NULL</code>)</td>
+</tr>
+<tr>
+<td><code>v.x IS NULL</code>, <code>v.x IS NOT NULL</code></td>
+<td>null tests</td>
+</tr>
+<tr>
+<td><code>v.x IN ['a', 'b']</code>, <code>v.x NOT IN $list</code></td>
+<td><code>IN</code></td>
+</tr>
+<tr>
+<td><code>v.x STARTS WITH 'a'</code>, <code>ENDS WITH</code>, <code>CONTAINS</code></td>
+<td><code>LIKE</code>, with <code>%</code> and <code>_</code> escaped</td>
+</tr>
+<tr>
+<td><code>v.x =~ 'Sea.*'</code></td>
+<td>a PostgreSQL regular expression on the whole value</td>
+</tr>
+<tr>
+<td><code>toLower(v.x) = 'bar'</code>, <code>toUpper(...)</code></td>
+<td><code>LOWER()</code> / <code>UPPER()</code></td>
+</tr>
+<tr>
+<td><code>v.open</code></td>
+<td><code>v.open = true</code></td>
+</tr>
+<tr>
+<td><code>v.x = v.y</code></td>
+<td>two columns of the same node</td>
+</tr>
+<tr>
+<td><code>AND</code>, <code>OR</code>, <code>XOR</code>, <code>NOT</code>, <code>( ... )</code></td>
+<td>as written</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each condition is about <strong>one variable</strong>. graph_query turns each variable's conditions into a relation and walks through it, so conditions on nodes in the middle of a path narrow the walk as it goes:</p>
+<pre class="cypher"><code>MATCH (s:Locale)-[:contains*0..]-&gt;(c:Locale)-[:has_venue]-&gt;(v:Venue)
+WHERE s.name = &#39;USA&#39; AND c.kind = &#39;city&#39; AND (v.name STARTS WITH &#39;E&#39; OR v.name ENDS WITH &#39;sh&#39;)
+RETURN v</code></pre>
+<p>A condition comparing two variables (<code>a.name = b.name</code>) raises <code>GraphQuery::UnsupportedCypher</code>.</p>
+<h2 id="cypher-return">RETURN</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>RETURN</th>
+<th>Gives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v</code></td>
+<td>a relation of <code>v</code>'s nodes (lazy, chainable)</td>
+</tr>
+<tr>
+<td><code>v.name</code></td>
+<td><code>pluck(:name)</code>: <code>['Eagle', 'Globe']</code></td>
+</tr>
+<tr>
+<td><code>v.name, v.kind</code></td>
+<td><code>pluck(:name, :kind)</code>: <code>[['Eagle', 'bar'], ...]</code></td>
+</tr>
+<tr>
+<td><code>DISTINCT v.kind</code></td>
+<td>distinct values</td>
+</tr>
+<tr>
+<td><code>count(*)</code>, <code>count(v)</code>, <code>count(DISTINCT v)</code></td>
+<td>an Integer: how many distinct nodes</td>
+</tr>
+</tbody>
+</table></div>
+<p>Return one variable. A walk finds the nodes that can be reached, not every combination of nodes along the way, so <code>RETURN a, b</code> raises <code>UnsupportedCypher</code>; return one and walk again from it if you need the other.</p>
+<h2 id="cypher-several-patterns">Several patterns</h2>
+<p>Patterns that share a variable are joined on it:</p>
+<pre class="cypher"><code>MATCH (p:Person)-[:billed_on]-&gt;(e:Event), (v:Venue)-[:hosts]-&gt;(e)
+MATCH (:Locale {name: &#39;Oregon&#39;})-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v)
+RETURN e</code></pre>
+<p>Each pattern narrows the shared variables to the nodes it can match, and the narrowing repeats once per pattern so it carries through chains of patterns. This is exact when the patterns form a tree (joined one variable at a time). When two patterns share two variables, each variable is narrowed on its own, so a pair that matches separately but not together still passes.</p>
+<h2 id="cypher-parameters">Parameters</h2>
+<p><code>$name</code> reads the keyword arguments: in property maps, <code>WHERE</code>, <code>IN</code>, <code>SKIP</code> and <code>LIMIT</code>. Values are always passed to SQL as quoted values, never as SQL text. A missing parameter raises <code>GraphQuery::PatternError</code>.</p>
+<h2 id="cypher-not-supported">Not supported</h2>
+<p>Writing clauses (<code>CREATE</code>, <code>MERGE</code>, <code>SET</code>, <code>DELETE</code>), <code>OPTIONAL MATCH</code>, <code>WITH</code>, <code>UNWIND</code>, <code>UNION</code>, aggregation other than <code>count</code>, path variables (<code>p = (a)--&gt;(b)</code>), and returning several variables. Each raises a <code>PatternError</code> or <code>UnsupportedCypher</code> that names what it met.</p>
+<p>If a database has Apache AGE, <code>GraphQuery::Age.cypher</code> passes full Cypher through to it (see <a href="#cypher-internals">How it runs</a>).</p>
+</section><section id="writes"><h1>Writing edges</h1>
+<p>The edges you declare to read the graph can also write it. <code>GraphQuery.transaction</code> opens one database transaction and gives you a <code>GraphQuery::Transaction</code> that links and unlinks by edge name:</p>
+<div class="sourceCode" id="writes-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="writes-cb1-1"><span class="dt">GraphQuery</span><span class="at">.transaction</span> <span class="cf">do</span> <span class="op">|</span>graph<span class="op">|</span></span>
+<span id="writes-cb1-2">  hill <span class="op">=</span> graph<span class="at">.create</span>(<span class="dt">Locale</span>, <span class="wa">name:</span> <span class="vs">&#39;Capitol Hill&#39;</span>)</span>
+<span id="writes-cb1-3">  graph<span class="at">.link</span>(seattle, <span class="wa">:contains</span>, hill)                                   <span class="co"># sets locales.parent_id</span></span>
+<span id="writes-cb1-4">  graph<span class="at">.link</span>(northwest, <span class="wa">:contains</span>, hill, <span class="wa">via:</span> <span class="dt">LocaleGrouping</span>,            <span class="co"># creates a join row</span></span>
+<span id="writes-cb1-5">                                         <span class="wa">attributes:</span> <span class="op">{</span> <span class="wa">role:</span> <span class="vs">&#39;core&#39;</span> <span class="op">}</span>)</span>
+<span id="writes-cb1-6">  graph<span class="at">.relink</span>(hill, <span class="wa">:has_venue</span>, eagle, <span class="wa">from:</span> downtown)                  <span class="co"># moves the venue</span></span>
+<span id="writes-cb1-7">  graph<span class="at">.unlink</span>(seattle, <span class="wa">:has_venue</span>, closed_bar)</span>
+<span id="writes-cb1-8"><span class="cf">end</span></span></code></pre></div>
+<h2 id="writes-where-a-write-lands">Where a write lands</h2>
+<p>An edge is written where it's kept:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>The edge is kept</th>
+<th><code>link</code></th>
+<th><code>unlink</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>on the target's row (<code>has_many</code>, <code>has_one</code>)</td>
+<td>sets the target's foreign key</td>
+<td>clears it</td>
+</tr>
+<tr>
+<td>on the source's row (<code>belongs_to</code>)</td>
+<td>sets the source's foreign key</td>
+<td>clears it</td>
+</tr>
+<tr>
+<td>in a join model (<code>has_many :through</code>, <code>through:</code>)</td>
+<td>creates a join row with the edge's Hash <code>where:</code> conditions and <code>attributes:</code></td>
+<td>destroys the matching rows</td>
+</tr>
+</tbody>
+</table></div>
+<p>Linking an edge that's already there, or unlinking one that isn't, changes nothing. SQL and computed edges can't be written.</p>
+<p>When several edges share a name between the same two models (a <code>has_many</code> and a join model, say), pass <code>via:</code> with the model that holds the one you mean. Without it the transaction raises <code>GraphQuery::AmbiguousResult</code>.</p>
+<h2 id="writes-methods">Methods</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>link(from, name, to, via: nil, attributes: {})</code></td>
+<td>add the edge</td>
+</tr>
+<tr>
+<td><code>unlink(from, name, to, via: nil)</code></td>
+<td>remove it</td>
+</tr>
+<tr>
+<td><code>relink(new_from, name, to, from:, via: nil, attributes: {})</code></td>
+<td>unlink from <code>from:</code>, link from <code>new_from</code></td>
+</tr>
+<tr>
+<td><code>linked?(from, name, to, via: nil)</code></td>
+<td>whether the edge is there</td>
+</tr>
+<tr>
+<td><code>create(model, **attributes)</code>, <code>update(record, **attributes)</code>, <code>destroy(record)</code></td>
+<td>write nodes in the same transaction</td>
+</tr>
+<tr>
+<td><code>changes</code></td>
+<td>what was written, in order: <code>Change(action, edge, from, to, record)</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Rows are saved with <code>save!</code> and <code>destroy!</code>, so validations and callbacks run. Any exception rolls every write back. <code>GraphQuery.transaction</code> nests inside an outer transaction as a savepoint.</p>
+<h2 id="writes-graph-mutations">Graph mutations</h2>
+<p>A graph mutation is a model method that writes the graph, marked so that it runs in a transaction and can be exposed to GraphQL. Put <code>graph_mutation</code> on the line before the <code>def</code>:</p>
+<div class="sourceCode" id="writes-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="writes-cb2-1"><span class="cf">class</span> <span class="dt">Locale</span> <span class="op">&lt;</span> <span class="dt">ApplicationRecord</span></span>
+<span id="writes-cb2-2">  graph_mutation <span class="wa">arguments:</span> <span class="op">{</span> <span class="wa">child:</span> <span class="dt">Locale</span>, <span class="wa">role:</span> <span class="dt">String</span> <span class="op">}</span>, <span class="wa">description:</span> <span class="vs">&#39;Make child a member of this locale.&#39;</span></span>
+<span id="writes-cb2-3">  <span class="cf">def</span> adopt(child<span class="op">:</span>, <span class="wa">role:</span> <span class="dv">nil</span>, <span class="wa">graph:</span>)</span>
+<span id="writes-cb2-4">    graph<span class="at">.link</span>(<span class="dv">self</span>, <span class="wa">:contains</span>, child, <span class="wa">via:</span> <span class="dt">LocaleGrouping</span>, <span class="wa">attributes:</span> <span class="op">{</span> <span class="wa">role:</span> <span class="op">}</span>)</span>
+<span id="writes-cb2-5">    <span class="dv">self</span></span>
+<span id="writes-cb2-6">  <span class="cf">end</span></span>
+<span id="writes-cb2-7"></span>
+<span id="writes-cb2-8">  graph_mutation <span class="cf">def</span> close <span class="op">=</span> update!(<span class="wa">closed_at:</span> <span class="dt">Time</span><span class="at">.current</span>) <span class="op">&amp;&amp;</span> <span class="dv">self</span>   <span class="co"># or in front of it, with no options</span></span>
+<span id="writes-cb2-9"></span>
+<span id="writes-cb2-10">  graph_mutation <span class="wa">arguments:</span> <span class="op">{</span> <span class="wa">venues:</span> <span class="kw">[</span><span class="dt">Venue</span><span class="kw">]</span> <span class="op">}</span>, <span class="wa">returns:</span> <span class="dt">Venue</span></span>
+<span id="writes-cb2-11">  <span class="cf">def</span> take_venues(venues<span class="op">:</span>, <span class="wa">graph:</span>)</span>
+<span id="writes-cb2-12">    venues<span class="at">.each</span> <span class="op">{</span> graph<span class="at">.relink</span>(<span class="dv">self</span>, <span class="wa">:has_venue</span>, it, <span class="wa">from:</span> it<span class="at">.locale</span>) <span class="op">}</span></span>
+<span id="writes-cb2-13">    venues<span class="at">.first</span></span>
+<span id="writes-cb2-14">  <span class="cf">end</span></span>
+<span id="writes-cb2-15"><span class="cf">end</span></span>
+<span id="writes-cb2-16"></span>
+<span id="writes-cb2-17">northwest<span class="at">.adopt</span>(<span class="wa">child:</span> seattle)       <span class="co"># runs in GraphQuery.transaction; graph: is filled in</span></span>
+<span id="writes-cb2-18"><span class="dt">Locale</span><span class="at">.graph_mutations</span>                <span class="co"># =&gt; { adopt: #&lt;GraphQuery::Mutation Locale#adopt&gt;, take_venues: ... }</span></span></code></pre></div>
+<ul>
+<li>The method runs inside <code>GraphQuery.transaction</code>. If it takes a <code>graph:</code> keyword, it's given the transaction.</li>
+<li><code>arguments:</code> types each keyword for GraphQL. A model takes an ID, <code>[Model]</code> takes a list of IDs, and <code>String</code>, <code>Integer</code>, <code>Float</code>, <code>:boolean</code>, <code>:id</code>, <code>:json</code>, <code>Date</code>, <code>Time</code> or a GraphQL type pass straight through. Required keywords become required arguments.</li>
+<li><code>returns:</code> types the result. The default is the model.</li>
+<li>Models may be given as classes or as names (<code>'Venue'</code>); a name avoids loading a model the class body can't see yet.</li>
+<li>Calling the method from Ruby works the same way, so the same write path backs a console, a job and the API.</li>
+</ul>
+<p>See <a href="#writes-graphql">GraphQL</a> for turning these into mutation fields.</p>
+</section><section id="graphql"><h1>GraphQL</h1>
+<p><code>require 'graph_query/graphql'</code> adds <a href="https://graphql-ruby.org">graphql-ruby</a> support (graphql 2.3 or later; the gem doesn't depend on it otherwise). Declared edges back fields, and graph mutations back mutation fields.</p>
+<h2 id="graphql-fields-backed-by-walks">Fields backed by walks</h2>
+<p>Extend an object type with <code>GraphQuery::GraphQL::Fields</code>, then declare fields by edge, pattern or block:</p>
+<div class="sourceCode" id="graphql-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="graphql-cb1-1"><span class="cf">class</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">LocaleType</span> <span class="op">&lt;</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">BaseObject</span></span>
+<span id="graphql-cb1-2">  <span class="fu">extend</span> <span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="op">::</span><span class="dt">Fields</span></span>
+<span id="graphql-cb1-3"></span>
+<span id="graphql-cb1-4">  graph_field <span class="wa">:children</span>, <span class="kw">[</span><span class="dt">Types</span><span class="op">::</span><span class="dt">LocaleType</span><span class="kw">]</span>, <span class="wa">edge:</span> <span class="wa">:contains</span>                       <span class="co"># one hop</span></span>
+<span id="graphql-cb1-5">  graph_field <span class="wa">:venues</span>, <span class="kw">[</span><span class="dt">Types</span><span class="op">::</span><span class="dt">VenueType</span><span class="kw">]</span>, <span class="wa">edge:</span> <span class="op">%</span>i<span class="kw">[</span>contains has_venue<span class="kw">]</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span> <span class="co"># contains*0.. then has_venue</span></span>
+<span id="graphql-cb1-6">  graph_field <span class="wa">:bars</span>, <span class="dt">Types</span><span class="op">::</span><span class="dt">VenueType</span><span class="at">.connection_type</span>,                              <span class="co"># paginated</span></span>
+<span id="graphql-cb1-7">              <span class="wa">pattern:</span> <span class="vs">&#39;()-[:contains*0..]-&gt;()-[:has_venue]-&gt;(v:Venue)&#39;</span>,</span>
+<span id="graphql-cb1-8">              <span class="wa">scope:</span> <span class="op">-&gt;</span>(venues, context) <span class="op">{</span> venues<span class="at">.where</span>(<span class="wa">kind:</span> <span class="vs">&#39;bar&#39;</span>)<span class="at">.order</span>(<span class="wa">:name</span>) <span class="op">}</span></span>
+<span id="graphql-cb1-9">  graph_field(<span class="wa">:events</span>, <span class="kw">[</span><span class="dt">Types</span><span class="op">::</span><span class="dt">EventType</span><span class="kw">]</span>) <span class="cf">do</span> <span class="op">|</span>start<span class="op">|</span>                               <span class="co"># anything a Query can do</span></span>
+<span id="graphql-cb1-10">    start<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:has_venue</span>)<span class="at">.traverse</span>(<span class="wa">:hosts</span>, <span class="wa">edge_where:</span> <span class="op">{</span> <span class="wa">cancelled:</span> <span class="dv">false</span> <span class="op">}</span>)</span>
+<span id="graphql-cb1-11">  <span class="cf">end</span></span>
+<span id="graphql-cb1-12"><span class="cf">end</span></span></code></pre></div>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Option</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>edge:</code></td>
+<td>an edge name, or several walked in turn (<code>depth:</code> and the other walk options apply to all but the last)</td>
+</tr>
+<tr>
+<td><code>pattern:</code></td>
+<td>a <a href="#graphql-patterns">pattern</a> whose first node is the object; the field returns the last node</td>
+</tr>
+<tr>
+<td>a block</td>
+<td>given <code>GraphQuery.from(object)</code>, returns a Query</td>
+</tr>
+<tr>
+<td><code>depth:</code>, <code>direction:</code>, <code>to:</code>, <code>through:</code>, <code>edge_where:</code></td>
+<td>as in <a href="#graphql-walking">walking</a></td>
+</tr>
+<tr>
+<td><code>scope:</code></td>
+<td><code>-&gt;(relation, context)</code> to filter, order or authorize the result</td>
+</tr>
+<tr>
+<td><code>model:</code></td>
+<td>the result's model, when the walk can reach several</td>
+</tr>
+</tbody>
+</table></div>
+<p>A list field is <strong>batched</strong>. graph_query loads it through <code>GraphQL::Dataloader</code>, so 50 locales asking for their venues run one walk from all 50 (with <code>origin_pairs</code>) and one load, not 50 of each. Add <code>use GraphQL::Dataloader</code> to the schema. A connection field returns a relation per object, so graphql-ruby paginates it in SQL.</p>
+<h2 id="graphql-a-field-per-declared-edge">A field per declared edge</h2>
+<p><code>graph_edges</code> adds a list field for every edge a model declares, one hop out:</p>
+<div class="sourceCode" id="graphql-cb2"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="graphql-cb2-1"><span class="cf">class</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">LocaleType</span> <span class="op">&lt;</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">BaseObject</span></span>
+<span id="graphql-cb2-2">  <span class="fu">extend</span> <span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="op">::</span><span class="dt">Fields</span></span>
+<span id="graphql-cb2-3">  graph_edges <span class="dt">Locale</span>, <span class="wa">only:</span> <span class="op">%</span>i<span class="kw">[</span>within rolls_up<span class="kw">]</span>   <span class="co"># within: [LocaleType], rolls_up_venues, rolls_up_events ...</span></span>
+<span id="graphql-cb2-4"><span class="cf">end</span></span></code></pre></div>
+<p>A field is named after its edge, or <code>edge_targets</code> when one edge name reaches several models. <code>except:</code> leaves edges out, and <code>scope:</code> applies to every field.</p>
+<p>Types are found by model name through <code>GraphQuery::GraphQL.type_for</code>. The default returns <code>"Types::&lt;Model&gt;Type"</code>, which graphql-ruby resolves lazily, so a type can list edges back to itself. Set your own when the types are named differently:</p>
+<div class="sourceCode" id="graphql-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="graphql-cb3-1"><span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="at">.type_for</span> <span class="op">=</span> <span class="op">-&gt;</span>(model_name) <span class="op">{</span> <span class="st">&quot;Types::</span><span class="sc">#{</span>model_name<span class="sc">}</span><span class="st">Object&quot;</span> <span class="op">}</span></span></code></pre></div>
+<h2 id="graphql-mutations-from-graph-mutations">Mutations from graph mutations</h2>
+<p>Extend the mutation type with <code>GraphQuery::GraphQL::MutationFields</code> and name the models:</p>
+<div class="sourceCode" id="graphql-cb4"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="graphql-cb4-1"><span class="cf">class</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">MutationType</span> <span class="op">&lt;</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">BaseObject</span></span>
+<span id="graphql-cb4-2">  <span class="fu">extend</span> <span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="op">::</span><span class="dt">MutationFields</span></span>
+<span id="graphql-cb4-3">  graph_mutations <span class="dt">Locale</span>, <span class="dt">Venue</span>                  <span class="co"># localeAdopt, localeTakeVenues, ...</span></span>
+<span id="graphql-cb4-4"><span class="cf">end</span></span></code></pre></div>
+<p>Each <a href="#graphql-writes">graph mutation</a> becomes a Relay-style mutation named <code>&lt;model&gt;_&lt;method&gt;</code>:</p>
+<div class="sourceCode" id="graphql-cb5"><pre class="sourceCode graphql"><code class="sourceCode graphql"><span id="graphql-cb5-1"><span class="kw">mutation</span> {</span>
+<span id="graphql-cb5-2">  localeAdopt(<span class="kw">input</span>: { id: <span class="st">&quot;...&quot;</span>, childId: <span class="st">&quot;...&quot;</span>, role: <span class="st">&quot;core&quot;</span> }) { result { name } errors }</span>
+<span id="graphql-cb5-3">}</span></code></pre></div>
+<ul>
+<li><code>id</code> finds the record to call the method on. Model arguments become <code>childId</code> / <code>venueIds</code> and are loaded through <code>GraphQuery::GraphQL.record_for</code>. By default that's the schema's <code>object_from_id</code>, falling back to <code>Model.find</code>.</li>
+<li><code>result</code> is what the method returns, typed by <code>returns:</code>. <code>errors</code> lists messages.</li>
+<li>The whole mutation runs in one transaction. A validation failure, a <code>GraphQuery::Error</code> or a returned <code>errors</code> rolls it back and comes back in <code>errors</code>.</li>
+<li><code>only:</code> and <code>except:</code> pick methods, and <code>base:</code> sets the mutation base class.</li>
+</ul>
+<h2 id="graphql-other-mutations">Other mutations</h2>
+<p>For a mutation written by hand, include <code>GraphQuery::GraphQL::TransactionalMutation</code>. <code>resolve</code> then runs in one transaction with <code>graph</code> open:</p>
+<div class="sourceCode" id="graphql-cb6"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="graphql-cb6-1"><span class="cf">class</span> <span class="dt">Mutations</span><span class="op">::</span><span class="dt">MoveVenue</span> <span class="op">&lt;</span> <span class="dt">Types</span><span class="op">::</span><span class="dt">BaseMutation</span></span>
+<span id="graphql-cb6-2">  <span class="fu">include</span> <span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="op">::</span><span class="dt">TransactionalMutation</span></span>
+<span id="graphql-cb6-3">  argument <span class="wa">:venue_id</span>, <span class="cn">ID</span></span>
+<span id="graphql-cb6-4">  argument <span class="wa">:locale_id</span>, <span class="cn">ID</span></span>
+<span id="graphql-cb6-5">  field <span class="wa">:venue</span>, <span class="dt">Types</span><span class="op">::</span><span class="dt">VenueType</span></span>
+<span id="graphql-cb6-6">  field <span class="wa">:errors</span>, <span class="kw">[</span><span class="dt">String</span><span class="kw">]</span>, <span class="wa">null:</span> <span class="dv">false</span></span>
+<span id="graphql-cb6-7"></span>
+<span id="graphql-cb6-8">  <span class="cf">def</span> resolve(venue_id<span class="op">:</span>, <span class="wa">locale_id:</span>)</span>
+<span id="graphql-cb6-9">    venue <span class="op">=</span> <span class="dt">Venue</span><span class="at">.find</span>(venue_id)</span>
+<span id="graphql-cb6-10">    graph<span class="at">.relink</span>(<span class="dt">Locale</span><span class="at">.find</span>(locale_id), <span class="wa">:has_venue</span>, venue, <span class="wa">from:</span> venue<span class="at">.locale</span>)</span>
+<span id="graphql-cb6-11">    <span class="op">{</span> <span class="wa">venue:</span> venue<span class="at">.reload</span>, <span class="wa">errors:</span> <span class="kw">[]</span> <span class="op">}</span></span>
+<span id="graphql-cb6-12">  <span class="cf">end</span></span>
+<span id="graphql-cb6-13"><span class="cf">end</span></span></code></pre></div>
+<p>Without an <code>errors</code> field, failures are raised as <code>GraphQL::ExecutionError</code>.</p>
+<p>To link or unlink one edge by ID, <code>edge_mutation</code> builds the whole class:</p>
+<div class="sourceCode" id="graphql-cb7"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="graphql-cb7-1">field <span class="wa">:add_venue</span>, <span class="wa">mutation:</span> <span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="at">.edge_mutation</span>(<span class="dt">Locale</span>, <span class="wa">:has_venue</span>, <span class="dt">Venue</span>)</span>
+<span id="graphql-cb7-2">field <span class="wa">:remove_venue</span>, <span class="wa">mutation:</span> <span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">GraphQL</span><span class="at">.edge_mutation</span>(<span class="dt">Locale</span>, <span class="wa">:has_venue</span>, <span class="dt">Venue</span>, <span class="wa">action:</span> <span class="wa">:unlink</span>)</span>
+<span id="graphql-cb7-3"><span class="co"># addVenue(input: { fromId: &quot;...&quot;, toId: &quot;...&quot; }) { changed from { name } to { name } errors }</span></span></code></pre></div>
+<p>Authorize these the way you authorize any graphql-ruby mutation (<code>ready?</code>, <code>authorized?</code>, or the base class you pass as <code>base:</code>).</p>
+</section><section id="internals"><h1>How it runs</h1>
+<h2 id="internals-one-statement-per-walk">One statement per walk</h2>
+<p>Each walk compiles to one <code>WITH RECURSIVE</code> statement. Node sets are CTEs: <code>g0</code> is the start, <code>gN</code> the nodes after step N, each with columns <code>(node_type, node_id)</code> plus whatever the result needs (<code>origin_type</code>/<code>origin_id</code>, <code>depth</code>, <code>path</code>).</p>
+<p>This walk:</p>
+<div class="sourceCode" id="internals-cb1"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="internals-cb1-1"><span class="dt">Locale</span><span class="at">.where</span>(<span class="wa">name:</span> <span class="vs">&#39;Seattle&#39;</span>)<span class="at">.traverse</span>(<span class="wa">:contains</span>, <span class="wa">depth:</span> <span class="dv">0</span><span class="op">..</span>)<span class="at">.traverse</span>(<span class="wa">:features</span>)</span></code></pre></div>
+<p>compiles to (reformatted):</p>
+<div class="sourceCode" id="internals-cb2"><pre class="sourceCode sql"><code class="sourceCode sql"><span id="internals-cb2-1"><span class="kw">WITH</span> RECURSIVE</span>
+<span id="internals-cb2-2">g0 <span class="kw">AS</span> (</span>
+<span id="internals-cb2-3">  <span class="kw">SELECT</span> <span class="kw">DISTINCT</span> node_type, node_id <span class="kw">FROM</span> (</span>
+<span id="internals-cb2-4">    <span class="kw">SELECT</span> <span class="st">&#39;Locale&#39;</span>:<span class="ch">:text</span> <span class="kw">AS</span> node_type, start_rows.<span class="ot">&quot;id&quot;</span> <span class="kw">AS</span> node_id</span>
+<span id="internals-cb2-5">    <span class="kw">FROM</span> (<span class="kw">SELECT</span> <span class="ot">&quot;locales&quot;</span>.<span class="ot">&quot;id&quot;</span> <span class="kw">FROM</span> <span class="ot">&quot;locales&quot;</span> <span class="kw">WHERE</span> <span class="ot">&quot;locales&quot;</span>.<span class="ot">&quot;name&quot;</span> <span class="op">=</span> <span class="st">&#39;Seattle&#39;</span>) start_rows</span>
+<span id="internals-cb2-6">  ) graph_query_start),</span>
+<span id="internals-cb2-7">g1_walk(node_type, node_id) <span class="kw">AS</span> (</span>
+<span id="internals-cb2-8">  <span class="kw">SELECT</span> p.node_type, p.node_id <span class="kw">FROM</span> g0 p</span>
+<span id="internals-cb2-9">  <span class="kw">UNION</span></span>
+<span id="internals-cb2-10">  <span class="kw">SELECT</span> e.to_type, e.to_id <span class="kw">FROM</span> g1_walk w</span>
+<span id="internals-cb2-11">  <span class="kw">CROSS</span> <span class="kw">JOIN</span> LATERAL (</span>
+<span id="internals-cb2-12">    (<span class="kw">SELECT</span> <span class="st">&#39;Locale&#39;</span>:<span class="ch">:text</span> <span class="kw">AS</span> from_type, edge_rows.source_id <span class="kw">AS</span> from_id,</span>
+<span id="internals-cb2-13">            <span class="st">&#39;Locale&#39;</span>:<span class="ch">:text</span> <span class="kw">AS</span> to_type,   edge_rows.target_id <span class="kw">AS</span> to_id</span>
+<span id="internals-cb2-14">     <span class="kw">FROM</span> (<span class="kw">SELECT</span> parent_id <span class="kw">AS</span> source_id, <span class="kw">id</span> <span class="kw">AS</span> target_id <span class="kw">FROM</span> locales</span>
+<span id="internals-cb2-15">           <span class="kw">WHERE</span> parent_id <span class="kw">IS</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">AND</span> <span class="kw">id</span> <span class="kw">IS</span> <span class="kw">NOT</span> <span class="kw">NULL</span>) edge_rows</span>
+<span id="internals-cb2-16">     <span class="kw">WHERE</span> edge_rows.source_id <span class="op">=</span> w.node_id <span class="kw">AND</span> w.node_type <span class="op">=</span> <span class="st">&#39;Locale&#39;</span>)</span>
+<span id="internals-cb2-17">    <span class="kw">UNION</span> <span class="kw">ALL</span></span>
+<span id="internals-cb2-18">    (<span class="kw">SELECT</span> <span class="st">&#39;Locale&#39;</span>, edge_rows.source_id, <span class="st">&#39;Locale&#39;</span>, edge_rows.target_id</span>
+<span id="internals-cb2-19">     <span class="kw">FROM</span> (<span class="kw">SELECT</span> super_locale_id <span class="kw">AS</span> source_id, member_locale_id <span class="kw">AS</span> target_id <span class="kw">FROM</span> locale_groupings</span>
+<span id="internals-cb2-20">           <span class="kw">WHERE</span> super_locale_id <span class="kw">IS</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">AND</span> member_locale_id <span class="kw">IS</span> <span class="kw">NOT</span> <span class="kw">NULL</span>) edge_rows</span>
+<span id="internals-cb2-21">     <span class="kw">WHERE</span> edge_rows.source_id <span class="op">=</span> w.node_id <span class="kw">AND</span> w.node_type <span class="op">=</span> <span class="st">&#39;Locale&#39;</span>)</span>
+<span id="internals-cb2-22">  ) e),</span>
+<span id="internals-cb2-23">g1(node_type, node_id) <span class="kw">AS</span> (<span class="kw">SELECT</span> <span class="kw">DISTINCT</span> <span class="op">*</span> <span class="kw">FROM</span> g1_walk x),</span>
+<span id="internals-cb2-24">g2(node_type, node_id) <span class="kw">AS</span> (</span>
+<span id="internals-cb2-25">  <span class="kw">SELECT</span> <span class="kw">DISTINCT</span> <span class="op">*</span> <span class="kw">FROM</span> (</span>
+<span id="internals-cb2-26">    <span class="kw">SELECT</span> e.to_type, e.to_id <span class="kw">FROM</span> g1 p</span>
+<span id="internals-cb2-27">    <span class="kw">CROSS</span> <span class="kw">JOIN</span> LATERAL (</span>
+<span id="internals-cb2-28">      (<span class="kw">SELECT</span> <span class="st">&#39;Locale&#39;</span>, edge_rows.source_id, <span class="st">&#39;Person&#39;</span>, edge_rows.target_id</span>
+<span id="internals-cb2-29">       <span class="kw">FROM</span> (<span class="kw">SELECT</span> locale_id <span class="kw">AS</span> source_id, person_id <span class="kw">AS</span> target_id <span class="kw">FROM</span> person_locales</span>
+<span id="internals-cb2-30">             <span class="kw">WHERE</span> locale_id <span class="kw">IS</span> <span class="kw">NOT</span> <span class="kw">NULL</span> <span class="kw">AND</span> person_id <span class="kw">IS</span> <span class="kw">NOT</span> <span class="kw">NULL</span>) edge_rows</span>
+<span id="internals-cb2-31">       <span class="kw">WHERE</span> edge_rows.source_id <span class="op">=</span> p.node_id <span class="kw">AND</span> p.node_type <span class="op">=</span> <span class="st">&#39;Locale&#39;</span>)</span>
+<span id="internals-cb2-32">    ) e) x)</span>
+<span id="internals-cb2-33"><span class="kw">SELECT</span> <span class="op">*</span> <span class="kw">FROM</span> g2</span></code></pre></div>
+<h2 id="internals-step-shapes">Step shapes</h2>
+<p>The compiler picks the cheapest shape a step allows:</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Shape</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>no edge to follow, <code>depth: 0..</code></td>
+<td>keep the nodes it started on</td>
+</tr>
+<tr>
+<td><code>depth: 1</code> or <code>0..1</code></td>
+<td>one join</td>
+</tr>
+<tr>
+<td><code>depth: 1..</code> or <code>0..</code></td>
+<td>a recursive set with <code>UNION</code>: it ends when nothing new turns up, so cycles end it</td>
+</tr>
+<tr>
+<td><code>depth: 1..3</code>, <code>2..</code>, or anything needing <code>with_depth</code></td>
+<td>a hop count on each row, stopping at the bound (or <code>max_depth</code>), then grouped to the fewest hops</td>
+</tr>
+<tr>
+<td><code>paths</code></td>
+<td><code>UNION ALL</code> of routes, each carrying a <code>text[]</code> of <code>'Type:id'</code> and refusing to revisit a node</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="internals-why-lateral">Why LATERAL</h2>
+<p>Each hop joins the edges through <code>CROSS JOIN LATERAL</code>, with the <code>source_id = node_id</code> condition inside each branch of the edge union. That lets PostgreSQL read each edge table through its index on the column that points back, one row of the frontier at a time, instead of scanning and hashing whole tables on every iteration. On a 200,000-locale tree, a subtree walk went from 62 ms to 8 ms with this change. Index the foreign key columns your edges read (Rails does for <code>references</code>).</p>
+<h2 id="internals-which-edges-a-step-uses">Which edges a step uses</h2>
+<p>Before compiling, a step works out which edges it may follow: those leaving the models it starts on and, for a multi-hop step, those leaving every model it can reach, until no new model turns up. A step over <code>:rolls_up</code> from a Locale therefore also follows Venue's and EventSeries' <code>:rolls_up</code> edges. Only those edges' tables appear in the SQL.</p>
+<h2 id="internals-limits">Limits</h2>
+<ul>
+<li><strong>Node ids share a type</strong> within a walk (all uuid, or all bigint).</li>
+<li><strong><code>max_depth</code></strong> (32) caps unbounded steps that count hops. Plain closures (<code>0..</code>, <code>1..</code>) have no cap; cycles end them.</li>
+<li><strong><code>paths</code></strong> grows with the number of routes, not nodes.</li>
+<li><strong>No branching patterns.</strong> Chain steps or start a second walk with <code>from_query</code>.</li>
+<li><strong>SQL edges</strong> don't take <code>edge_where:</code>, and only use indexes if the planner can push the condition into them.</li>
+</ul>
+<h2 id="internals-apache-age">Apache AGE</h2>
+<p>Where a database has Apache AGE, <code>GraphQuery::Age</code> passes real Cypher through:</p>
+<div class="sourceCode" id="internals-cb3"><pre class="sourceCode ruby"><code class="sourceCode ruby"><span id="internals-cb3-1"><span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">Age</span><span class="at">.available?</span>   <span class="co"># =&gt; false on Heroku Postgres</span></span>
+<span id="internals-cb3-2"><span class="dt">GraphQuery</span><span class="op">::</span><span class="dt">Age</span><span class="at">.cypher</span>(<span class="vs">&#39;my_graph&#39;</span>, <span class="vs">&#39;MATCH (a)-[:KNOWS]-&gt;(b) RETURN a, b&#39;</span>, <span class="wa">columns:</span> <span class="op">%</span>w<span class="kw">[</span>a b<span class="kw">]</span>)</span></code></pre></div>
+<p>It's a pass-through for databases that have it, not a second engine: everything else in graph_query runs on the CTE walker, which is also why <code>GraphQuery.cypher</code> works on Heroku Postgres, RDS and anywhere else without AGE.</p>
+<h2 id="internals-tests">Tests</h2>
+<p>The behaviour is written as shared examples (<code>spec/support/graph_query_examples.rb</code>) over a small graph in <code>gq_</code> tables, so an app can run the same examples against its own database. On their own:</p>
+<div class="sourceCode" id="internals-cb4"><pre class="sourceCode sh"><code class="sourceCode bash"><span id="internals-cb4-1"><span class="ex">createdb</span> graph_query_test</span>
+<span id="internals-cb4-2"><span class="va">GRAPH_QUERY_DATABASE_URL</span><span class="op">=</span>postgres:///graph_query_test <span class="ex">bundle</span> exec rake</span></code></pre></div>
+<p><code>rake</code> runs the specs, RuboCop and <code>rbs validate</code>.</p>
+</section><section id="reference"><h1>Reference</h1>
+<h2 id="reference-on-every-model">On every model</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>graph_edge(name, association:)</code></td>
+<td>an edge from an association</td>
+</tr>
+<tr>
+<td><code>graph_edge(name, to:, through:, source:, target:)</code></td>
+<td>an edge from a join model's columns</td>
+</tr>
+<tr>
+<td><code>graph_edge(name, to:, sql:)</code></td>
+<td>an edge from SQL selecting <code>source_id</code>, <code>target_id</code></td>
+</tr>
+<tr>
+<td><code>graph_edge(name, to:, computed: -&gt; { ... })</code>, <code>graph_edge(name, to:) { ... }</code></td>
+<td>an edge from a relation or SQL built per query</td>
+</tr>
+<tr>
+<td>... <code>where:</code></td>
+<td>a Hash or scope Proc the edge's rows must match</td>
+</tr>
+<tr>
+<td><code>Model.traverse(names = nil, **options)</code></td>
+<td>a Query from the current scope</td>
+</tr>
+<tr>
+<td><code>Model.graph</code></td>
+<td>a Query from the current scope, no steps yet</td>
+</tr>
+<tr>
+<td><code>Model.graph_match(pattern, params: {}, **bindings)</code></td>
+<td>a Match whose first node is the current scope</td>
+</tr>
+<tr>
+<td><code>record.traverse(...)</code>, <code>record.graph</code></td>
+<td>the same from one record</td>
+</tr>
+<tr>
+<td><code>graph_mutation(name = nil, arguments: {}, returns: nil, description: nil)</code></td>
+<td>mark a method as a <a href="#reference-writes">graph mutation</a></td>
+</tr>
+<tr>
+<td><code>Model.graph_mutations</code></td>
+<td>the model's graph mutations, by name</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>to:</code>, <code>through:</code> and <code>via:</code> take a model class or its name.</p>
+<h2 id="reference-graphquery">GraphQuery</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GraphQuery.from(scope)</code></td>
+<td>a Query from a relation, record or model</td>
+</tr>
+<tr>
+<td><code>GraphQuery.from_pairs(pairs)</code></td>
+<td>a Query from <code>[[type, id], ...]</code> of any models</td>
+</tr>
+<tr>
+<td><code>GraphQuery.from_query(query)</code></td>
+<td>a Query from the nodes another one reaches</td>
+</tr>
+<tr>
+<td><code>GraphQuery.match(pattern, params: {}, **bindings)</code></td>
+<td>a Match</td>
+</tr>
+<tr>
+<td><code>GraphQuery.cypher(query, **params)</code></td>
+<td>a relation, pluck rows or a count (see <a href="#reference-cypher">Cypher queries</a>)</td>
+</tr>
+<tr>
+<td><code>GraphQuery.transaction { |graph| ... }</code></td>
+<td>a <a href="#reference-writes">Transaction</a> in one database transaction</td>
+</tr>
+<tr>
+<td><code>GraphQuery.max_depth</code>, <code>max_depth=</code></td>
+<td>the hop cap for counted unbounded steps (32)</td>
+</tr>
+<tr>
+<td><code>GraphQuery.registry.all</code></td>
+<td>every declared edge</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-graphqueryquery">GraphQuery::Query</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>traverse(names = nil, depth: 1, direction: :out, to: nil, where: nil, through: nil, edge_where: nil)</code></td>
+<td>add a step</td>
+</tr>
+<tr>
+<td><code>out(names, **)</code>, <code>inbound(names, **)</code>, <code>both(names, **)</code></td>
+<td>a step with the direction fixed</td>
+</tr>
+<tr>
+<td><code>types</code></td>
+<td>model names the walk can end on</td>
+</tr>
+<tr>
+<td><code>to_relation(model = nil)</code>, <code>nodes</code></td>
+<td>reached nodes as a relation</td>
+</tr>
+<tr>
+<td><code>with_depth(model = nil)</code></td>
+<td>that relation with <code>graph_depth</code></td>
+</tr>
+<tr>
+<td><code>pairs</code>, <code>records</code></td>
+<td>every reached node, any model</td>
+</tr>
+<tr>
+<td><code>by_origin(model = nil)</code>, <code>origin_pairs(model = nil)</code></td>
+<td>reached nodes grouped by start node</td>
+</tr>
+<tr>
+<td><code>polymorphic(scope, name)</code></td>
+<td>rows of scope whose polymorphic <code>name</code> points at a reached node</td>
+</tr>
+<tr>
+<td><code>paths</code></td>
+<td>every simple path</td>
+</tr>
+<tr>
+<td><code>to_sql(origin: false, depth: false, path: false)</code></td>
+<td>the statement</td>
+</tr>
+<tr>
+<td>relation methods</td>
+<td>delegated to <code>to_relation</code> when the walk reaches one model</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-graphquerymatch">GraphQuery::Match</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nodes(var = nil, model: nil)</code></td>
+<td>a node variable's matches (default: the last node)</td>
+</tr>
+<tr>
+<td><code>paths</code></td>
+<td>every full match's path</td>
+</tr>
+<tr>
+<td><code>query(upto = all)</code></td>
+<td>the Query for the pattern (up to a node index)</td>
+</tr>
+<tr>
+<td>relation methods</td>
+<td>delegated to <code>nodes</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-graphquerycypher">GraphQuery::Cypher</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Cypher.new(query, params = {})</code></td>
+<td>parse a query (raises on bad syntax)</td>
+</tr>
+<tr>
+<td><code>result</code></td>
+<td>what <code>GraphQuery.cypher</code> returns</td>
+</tr>
+<tr>
+<td><code>nodes(:var)</code></td>
+<td>any node variable's matches, as a relation</td>
+</tr>
+<tr>
+<td><code>patterns</code>, <code>items</code>, <code>orders</code>, <code>skip</code>, <code>limit</code>, <code>distinct</code></td>
+<td>the parsed query</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-graphquerytransaction">GraphQuery::Transaction</h2>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>link(from, name, to, via: nil, attributes: {})</code></td>
+<td>add an edge (the written record, or nil if it was already there)</td>
+</tr>
+<tr>
+<td><code>unlink(from, name, to, via: nil)</code></td>
+<td>remove an edge</td>
+</tr>
+<tr>
+<td><code>relink(new_from, name, to, from:, via: nil, attributes: {})</code></td>
+<td>move an edge to a new source</td>
+</tr>
+<tr>
+<td><code>linked?(from, name, to, via: nil)</code></td>
+<td>whether an edge is there</td>
+</tr>
+<tr>
+<td><code>create</code>, <code>update</code>, <code>destroy</code></td>
+<td>write nodes</td>
+</tr>
+<tr>
+<td><code>changes</code></td>
+<td>every write, in order</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-graphquerygraphql">GraphQuery::GraphQL</h2>
+<p>Loaded with <code>require 'graph_query/graphql'</code>.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Fields#graph_field(name, type, edge: | pattern: | &amp;block, scope:, model:, depth:, ...)</code></td>
+<td>a field backed by a walk, batched</td>
+</tr>
+<tr>
+<td><code>Fields#graph_edges(model, only:, except:, scope:, type_for:)</code></td>
+<td>a field per declared edge</td>
+</tr>
+<tr>
+<td><code>MutationFields#graph_mutations(*models, only:, except:, base:)</code></td>
+<td>a mutation field per graph mutation</td>
+</tr>
+<tr>
+<td><code>TransactionalMutation</code></td>
+<td>include in a mutation: <code>resolve</code> runs in a transaction with <code>graph</code></td>
+</tr>
+<tr>
+<td><code>GraphQuery::GraphQL.edge_mutation(from_model, name, to_model, action: :link, via:, graphql_name:, base:)</code></td>
+<td>a mutation that links or unlinks one edge by ID</td>
+</tr>
+<tr>
+<td><code>GraphQuery::GraphQL.type_for</code>, <code>type_for=</code></td>
+<td>model name to GraphQL type (default <code>"Types::&lt;Model&gt;Type"</code>)</td>
+</tr>
+<tr>
+<td><code>GraphQuery::GraphQL.record_for</code>, <code>record_for=</code></td>
+<td><code>(model, id, context)</code> to a record</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-errors">Errors</h2>
+<p>All inherit from <code>GraphQuery::Error</code>.</p>
+<div class="tw"><table>
+<thead>
+<tr>
+<th>Error</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GraphQuery::NoEdges</code></td>
+<td>a step names edges that don't leave its nodes, or can never reach its <code>to:</code></td>
+</tr>
+<tr>
+<td><code>GraphQuery::AmbiguousResult</code></td>
+<td>a relation was asked of a walk that reaches several models</td>
+</tr>
+<tr>
+<td><code>GraphQuery::PatternError</code></td>
+<td>a pattern or query can't be read, binds an unknown variable, misses a <code>$param</code>, or has an unbound, unlabelled first node</td>
+</tr>
+<tr>
+<td><code>GraphQuery::UnsupportedCypher</code></td>
+<td>Cypher that reads fine but asks for what graph_query doesn't do (two variables in one condition, <code>RETURN a, b</code>, <code>OPTIONAL MATCH</code>)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="reference-types">Types</h2>
+<p>The gem ships signatures for both type checkers:</p>
+<ul>
+<li><strong>RBS</strong> in <code>sig/graph_query.rbs</code>. Steep and other RBS tools find it in the installed gem; Active Record's own types come from <a href="https://github.com/ruby/gem_rbs_collection">gem_rbs_collection</a> (<code>rbs collection install</code>).</li>
+<li><strong>Sorbet</strong> in <code>rbi/graph_query.rbi</code>. <code>bin/tapioca gem graph_query</code> copies it into <code>sorbet/rbi/gems</code>.</li>
+</ul>
+<p>Both describe <code>graph_edge</code>, <code>graph_mutation</code>, <code>traverse</code>, <code>graph</code> and <code>graph_match</code> on every model, and <code>Query</code>, <code>Match</code>, <code>Cypher</code>, <code>Pattern</code>, <code>Edge</code>, <code>Transaction</code>, <code>Mutation</code> and the errors. The GraphQL module isn't typed: graphql-ruby's class DSL has no signatures to build on.</p>
+</section>
+</main></div>
+<script>
+const links=[...document.querySelectorAll('nav a')];const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting){const id=e.target.id;let a=map.get(id);if(!a)return;links.forEach(l=>l.classList.remove('active'));a.classList.add('active');const top=a.closest('nav>ul>li')?.querySelector('a.top');if(top&&top!==a)top.classList.add('active');}})},{rootMargin:'0px 0px -75% 0px'});
+document.querySelectorAll('section,section h2').forEach(el=>{if(el.id)obs.observe(el)});
+</script></body></html>
