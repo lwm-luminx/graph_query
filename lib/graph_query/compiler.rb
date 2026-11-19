@@ -52,7 +52,9 @@ module GraphQuery
       prev = "g#{index - 1}"
       name = "g#{index}"
 
-      if @path
+      if edges.empty?
+        compile_stay(step, name, prev, want_depth)
+      elsif @path
         compile_paths(step, name, prev, edges_sql, want_depth)
       elsif step.max == 1 && !want_depth
         compile_hop(step, name, prev, edges_sql)
@@ -61,6 +63,13 @@ module GraphQuery
       else
         compile_bounded(step, name, prev, edges_sql, want_depth)
       end
+    end
+
+    # No edge to follow: the step keeps the nodes it starts on (depth: 0..).
+    def compile_stay(step, name, prev, want_depth)
+      list = [*carry, 'node_type', 'node_id'].map { "x.#{it}" }.join(', ')
+      @ctes << "#{name} AS (SELECT DISTINCT #{list}#{', 0 AS depth' if want_depth} FROM #{prev} x " \
+               "WHERE #{arrive(step, 'x')})"
     end
 
     # One hop (or none, for depth: 0..1).
@@ -152,7 +161,8 @@ module GraphQuery
         seen |= heads
         break if frontier.empty? || step.max == 1
       end
-      if chosen.empty?
+      # A step that may stay put (depth: 0..) from nodes with no such edges is just those nodes.
+      if chosen.empty? && step.min.positive?
         raise NoEdges,
               "no #{step.names&.join('|') || 'edges'} (#{step.direction}) from #{types_in.join(', ')}"
       end

@@ -63,7 +63,8 @@ module GraphQuery
     end
     alias nodes to_relation
 
-    # The same relation with each node's hop count in the last step selected as graph_depth.
+    # The same relation with each node's hop count in the last step selected as graph_depth. Order by it with
+    # order(Arel.sql('graph_query_nodes.depth')), which survives pluck.
     def with_depth(model = nil)
       model = resolve_model(model)
       conn = model.connection
@@ -84,12 +85,18 @@ module GraphQuery
     # {start id => [nodes of model it reaches]}, for a dataloader batching many starts in one query.
     def by_origin(model = nil)
       model = resolve_model(model)
-      rows = connection.select_rows(<<~SQL.squish)
+      rows = origin_pairs(model)
+      found = model.where(model.primary_key => rows.map(&:last).uniq).index_by(&:id)
+      rows.group_by(&:first).transform_values { |list| list.filter_map { found[it.last] } }
+    end
+
+    # [[start id, reached id], ...] for the reached nodes of one model, unloaded.
+    def origin_pairs(model = nil)
+      model = resolve_model(model)
+      connection.select_rows(<<~SQL.squish)
         SELECT DISTINCT origin_id, node_id FROM (#{to_sql(origin: true)}) g
         WHERE node_type = #{connection.quote(model.polymorphic_name)}
       SQL
-      found = model.where(model.primary_key => rows.map(&:last).uniq).index_by(&:id)
-      rows.group_by(&:first).transform_values { |list| list.filter_map { found[it.last] } }
     end
 
     # Each path the walk takes, as [[type, id], ...] from the start node to the last one. Paths never repeat a node.

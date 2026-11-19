@@ -122,8 +122,15 @@ RSpec.shared_examples 'graph_query' do
       expect(names(query)).to eq(['Drag Brunch', 'Leather Night'])
     end
 
-    it 'says which edges are missing' do
+    it 'says which edges are missing, unless the step may stay put' do
       expect { GqEvent.all.traverse(:contains).to_a }.to raise_error(GraphQuery::NoEdges, /contains/)
+      expect(names(leather_night.traverse(:rolls_up, depth: 0..))).to eq(['Leather Night'])
+      expect(leather_night.traverse(:rolls_up, depth: 0..).with_depth.map(&:graph_depth)).to eq([0])
+    end
+
+    it 'pairs each start with what it reaches' do
+      pairs = GqPlace.where(id: [king, oregon]).traverse(:contains, depth: 0..).traverse(:has_venue).origin_pairs
+      expect(pairs).to contain_exactly([king.id, eagle.id], [king.id, wildrose.id], [oregon.id, crush.id])
     end
   end
 
