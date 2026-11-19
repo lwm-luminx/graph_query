@@ -81,8 +81,8 @@ can run the same examples against its own database.
 
 ## Releasing
 
-Bump `GraphQuery::VERSION` and `CHANGELOG.md`, merge to main, then push a tag `vX.Y.Z`. The Release workflow runs the
-specs, checks the tag matches the version, publishes the gem to RubyGems with trusted publishing (no API key is
+Bump `GraphQuery::VERSION` and `CHANGELOG.md`, merge to main, then run the Release workflow on main (Actions →
+Release → Run workflow) or push a tag `vX.Y.Z`. It runs the specs, tags the version (or checks the tag matches it), publishes the gem to RubyGems with trusted publishing (no API key is
 stored), and creates a GitHub release.
 
 ## License
