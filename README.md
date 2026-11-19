@@ -18,7 +18,7 @@ class Venue < ApplicationRecord
   graph_edge :hosts, association: :all_events
 end
 
-washington = Locale.where(slug: 'washington')
+washington = Locale.where(name: 'Washington')
 washington.traverse(:contains, depth: 0..)                              # the state and everything in it
 washington.traverse(:contains, depth: 0..).traverse(:has_venue)         # every venue in the state
   .where(kind: 'bar').order(:name)                                      # ... still a relation
@@ -27,6 +27,13 @@ seattle.traverse(:contains, direction: :in, depth: 1..)                 # everyt
 GraphQuery.match('(s:Locale)-[:contains*0..]->()-[:has_venue]->(v:Venue)-[:hosts]->(e:Event)<-[:billed_on]-(p:Person)',
                  s: washington, e: Event.upcoming).nodes(:v)            # venues where someone billed upcoming plays
 ```
+
+## Guide
+
+The full guide is in [docs/](docs/): [getting started](docs/01-getting-started.md),
+[declaring edges](docs/02-declaring-edges.md), [walking](docs/03-walking.md), [results](docs/04-results.md),
+[Cypher-style patterns](docs/05-patterns.md), [in AudienceKit](docs/06-audiencekit.md),
+[how it runs](docs/07-internals.md) and the [reference](docs/08-reference.md).
 
 ## Declaring edges
 
