@@ -1,11 +1,13 @@
 name: Release
 
-# Push a tag vX.Y.Z on main (matching GraphQuery::VERSION) to publish that version to RubyGems. Publishing uses
-# RubyGems trusted publishing: rubygems.org trusts this workflow, so no API key is stored in the repository.
+# Publishes GraphQuery::VERSION to RubyGems: push a tag vX.Y.Z on main, or run this workflow by hand on main (it tags
+# the commit itself). Publishing uses RubyGems trusted publishing: rubygems.org trusts this workflow, so no API key is
+# stored in the repository.
 
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 jobs:
   release:
@@ -31,13 +33,24 @@ jobs:
         with:
           ruby-version: '4.0'
           bundler-cache: true
-      - name: Tag matches the gem's version
+      - run: bundle exec rspec
+      - name: Tag the version
+        id: tag
         run: |
           version=$(ruby -r ./lib/graph_query/version -e 'print GraphQuery::VERSION')
-          test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, gem version $version"; exit 1; }
-      - run: bundle exec rspec
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            test "v$version" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME, gem version $version"; exit 1; }
+          else
+            test "$GITHUB_REF_NAME" = main || { echo "release from main, not $GITHUB_REF_NAME"; exit 1; }
+            git config user.name github-actions[bot]
+            git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+            git tag -a "v$version" -m "graph_query $version"
+            git push origin "v$version"
+          fi
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
       - uses: rubygems/release-gem@v1
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" pkg/*.gem --title "$GITHUB_REF_NAME" --notes-file <(ruby -e 'print File.read("CHANGELOG.md")[/^## #{ARGV[0].delete_prefix("v")}.*?(?=^## |\z)/m]' "$GITHUB_REF_NAME")
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: gh release create "$TAG" pkg/*.gem --title "$TAG" --notes-file <(ruby -e 'print File.read("CHANGELOG.md")[/^## #{ARGV[0].delete_prefix("v")}.*?(?=^## |\z)/m]' "$TAG")
