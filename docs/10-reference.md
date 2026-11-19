@@ -7,11 +7,16 @@
 | `graph_edge(name, association:)` | an edge from an association |
 | `graph_edge(name, to:, through:, source:, target:)` | an edge from a join model's columns |
 | `graph_edge(name, to:, sql:)` | an edge from SQL selecting `source_id`, `target_id` |
+| `graph_edge(name, to:, computed: -> { ... })`, `graph_edge(name, to:) { ... }` | an edge from a relation or SQL built per query |
 | ... `where:` | a Hash or scope Proc the edge's rows must match |
 | `Model.traverse(names = nil, **options)` | a Query from the current scope |
 | `Model.graph` | a Query from the current scope, no steps yet |
 | `Model.graph_match(pattern, params: {}, **bindings)` | a Match whose first node is the current scope |
 | `record.traverse(...)`, `record.graph` | the same from one record |
+| `graph_mutation(name = nil, arguments: {}, returns: nil, description: nil)` | mark a method as a [graph mutation](#writes) |
+| `Model.graph_mutations` | the model's graph mutations, by name |
+
+`to:`, `through:` and `via:` take a model class or its name.
 
 ## GraphQuery
 
@@ -22,6 +27,7 @@
 | `GraphQuery.from_query(query)` | a Query from the nodes another one reaches |
 | `GraphQuery.match(pattern, params: {}, **bindings)` | a Match |
 | `GraphQuery.cypher(query, **params)` | a relation, pluck rows or a count (see [Cypher queries](#cypher)) |
+| `GraphQuery.transaction { \|graph\| ... }` | a [Transaction](#writes) in one database transaction |
 | `GraphQuery.max_depth`, `max_depth=` | the hop cap for counted unbounded steps (32) |
 | `GraphQuery.registry.all` | every declared edge |
 
@@ -59,6 +65,31 @@
 | `nodes(:var)` | any node variable's matches, as a relation |
 | `patterns`, `items`, `orders`, `skip`, `limit`, `distinct` | the parsed query |
 
+## GraphQuery::Transaction
+
+| Method | |
+| --- | --- |
+| `link(from, name, to, via: nil, attributes: {})` | add an edge (the written record, or nil if it was already there) |
+| `unlink(from, name, to, via: nil)` | remove an edge |
+| `relink(new_from, name, to, from:, via: nil, attributes: {})` | move an edge to a new source |
+| `linked?(from, name, to, via: nil)` | whether an edge is there |
+| `create`, `update`, `destroy` | write nodes |
+| `changes` | every write, in order |
+
+## GraphQuery::GraphQL
+
+Loaded with `require 'graph_query/graphql'`.
+
+| Method | |
+| --- | --- |
+| `Fields#graph_field(name, type, edge: \| pattern: \| &block, scope:, model:, depth:, ...)` | a field backed by a walk, batched |
+| `Fields#graph_edges(model, only:, except:, scope:, type_for:)` | a field per declared edge |
+| `MutationFields#graph_mutations(*models, only:, except:, base:)` | a mutation field per graph mutation |
+| `TransactionalMutation` | include in a mutation: `resolve` runs in a transaction with `graph` |
+| `GraphQuery::GraphQL.edge_mutation(from_model, name, to_model, action: :link, via:, graphql_name:, base:)` | a mutation that links or unlinks one edge by ID |
+| `GraphQuery::GraphQL.type_for`, `type_for=` | model name to GraphQL type (default `"Types::<Model>Type"`) |
+| `GraphQuery::GraphQL.record_for`, `record_for=` | `(model, id, context)` to a record |
+
 ## Errors
 
 All inherit from `GraphQuery::Error`.
@@ -78,5 +109,6 @@ The gem ships signatures for both type checkers:
   come from [gem_rbs_collection](https://github.com/ruby/gem_rbs_collection) (`rbs collection install`).
 - **Sorbet** in `rbi/graph_query.rbi`. `bin/tapioca gem graph_query` copies it into `sorbet/rbi/gems`.
 
-Both describe `graph_edge`, `traverse`, `graph` and `graph_match` on every model, and `Query`, `Match`, `Cypher`,
-`Pattern`, `Edge` and the errors.
+Both describe `graph_edge`, `graph_mutation`, `traverse`, `graph` and `graph_match` on every model, and `Query`,
+`Match`, `Cypher`, `Pattern`, `Edge`, `Transaction`, `Mutation` and the errors. The GraphQL module isn't typed:
+graphql-ruby's class DSL has no signatures to build on.

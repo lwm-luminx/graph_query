@@ -24,6 +24,7 @@ module GraphQuery
   type direction = :out | :in | :both
   type names = Symbol | Array[Symbol] | nil
   type node_pair = [String, untyped]
+  type computed_edge = ^() -> (ActiveRecord::Relation | String)
 
   class StartSet
     attr_reader sql: String
@@ -41,6 +42,7 @@ module GraphQuery
   def self.from_query: (Query) -> Query
   def self.match: (String pattern, ?params: Hash[Symbol, untyped], **untyped bindings) -> Match
   def self.cypher: (String query, **untyped params) -> (ActiveRecord::Relation | Array[untyped] | Integer)
+  def self.transaction: () { (Transaction) -> void } -> Transaction
   def self.start_set: (ActiveRecord::Relation) -> StartSet
   def self.relation_for: (scope) -> ActiveRecord::Relation
   def self.type_name: (scope | String | Symbol) -> String
@@ -49,9 +51,13 @@ module GraphQuery
   # Added to every Active Record model.
   module Model : ActiveRecord::Base
     module ClassMethods
-      def graph_edge: (Symbol name, ?association: Symbol?, ?to: String | Symbol | nil, ?through: String | Symbol | nil,
+      def graph_edge: (Symbol name, ?association: Symbol?, ?to: model_ref?, ?through: model_ref?,
                        ?source: Symbol | String | nil, ?target: Symbol | String | nil, ?sql: String?,
-                       ?where: edge_condition?) -> void
+                       ?where: edge_condition?, ?computed: computed_edge?) ?{ () -> (ActiveRecord::Relation | String) }
+                     -> void
+      def graph_mutation: (?Symbol? name, ?arguments: Hash[Symbol, untyped], ?returns: untyped,
+                           ?description: String?) -> Symbol?
+      def graph_mutations: () -> Hash[Symbol, Mutation]
       def traverse: (?names, **untyped) -> Query
       def graph: () -> Query
       def graph_match: (String pattern, ?params: Hash[Symbol, untyped], **untyped bindings) -> Match
@@ -69,12 +75,12 @@ module GraphQuery
     attr_reader source_column: String?
     attr_reader target_column: String?
     attr_reader conditions: Array[untyped]
-    attr_reader sql: String?
+    attr_reader sql: String | computed_edge | nil
     attr_reader declared_by: String
 
     def initialize: (name: Symbol | String, from: String, to: String, declared_by: String, ?table_model: String?,
                      ?source_column: String | Symbol | nil, ?target_column: String | Symbol | nil,
-                     ?conditions: Array[untyped], ?sql: String?) -> void
+                     ?conditions: Array[untyped], ?sql: String | computed_edge | nil) -> void
     def key: () -> Array[untyped]
     def rows_sql: (direction, ?edge_where: edge_condition?, ?bound: String?) -> String
     def model: () -> singleton(ActiveRecord::Base)?
@@ -181,6 +187,41 @@ module GraphQuery
     def initialize: (String source, ?Hash[Symbol | String, untyped] params) -> void
     def result: () -> (ActiveRecord::Relation | Array[untyped] | Integer)
     def nodes: (Symbol var) -> ActiveRecord::Relation
+  end
+
+  class Transaction
+    class Change
+      attr_reader action: :link | :unlink | :create | :update | :destroy
+      attr_reader edge: Edge?
+      attr_reader from: ActiveRecord::Base?
+      attr_reader to: ActiveRecord::Base?
+      attr_reader record: ActiveRecord::Base?
+    end
+
+    attr_reader changes: Array[Change]
+
+    def link: (ActiveRecord::Base from, Symbol name, ActiveRecord::Base to, ?via: model_ref?,
+               ?attributes: Hash[Symbol, untyped]) -> ActiveRecord::Base?
+    def unlink: (ActiveRecord::Base from, Symbol name, ActiveRecord::Base to, ?via: model_ref?) -> ActiveRecord::Base?
+    def relink: (ActiveRecord::Base new_from, Symbol name, ActiveRecord::Base to, from: ActiveRecord::Base?,
+                 ?via: model_ref?, ?attributes: Hash[Symbol, untyped]) -> ActiveRecord::Base?
+    def linked?: (ActiveRecord::Base from, Symbol name, ActiveRecord::Base to, ?via: model_ref?) -> bool
+    def create: (singleton(ActiveRecord::Base) model, **untyped attributes) -> ActiveRecord::Base
+    def update: (ActiveRecord::Base record, **untyped attributes) -> ActiveRecord::Base
+    def destroy: (ActiveRecord::Base record) -> ActiveRecord::Base
+  end
+
+  class Mutation
+    attr_reader model: singleton(ActiveRecord::Base)
+    attr_reader name: Symbol
+    attr_reader arguments: Hash[Symbol, untyped]
+    attr_reader returns: untyped
+    attr_reader description: String?
+
+    def required: () -> Array[Symbol]
+    def keywords: () -> Array[Symbol]
+    def takes_graph?: () -> bool
+    def call: (ActiveRecord::Base record, **untyped args) -> untyped
   end
 
   module Age

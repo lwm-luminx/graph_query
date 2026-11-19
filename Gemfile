@@ -9,6 +9,7 @@ if (version = ENV.fetch('ACTIVERECORD_VERSION', nil))
   gem 'activerecord', "~> #{version}.0"
 end
 
+gem 'graphql', '>= 2.3'
 gem 'rake', '~> 13.0'
 gem 'rbs', '>= 3.9'
 gem 'rspec', '~> 3.13'

@@ -76,5 +76,7 @@ result.
 - [Results](#results): relations, depths, pairs, paths, roll-ups and dataloaders.
 - [Patterns](#patterns): the same walks as text, with Ruby bindings.
 - [Cypher queries](#cypher): MATCH, WHERE, RETURN, ORDER BY, SKIP, LIMIT.
+- [Writing edges](#writes): transactions that link and unlink, and graph mutations on models.
+- [GraphQL](#graphql): fields backed by walks, batched, and mutations from graph mutations.
 - [How it runs](#internals): the SQL, performance and limits.
 - [Reference](#reference): every method, errors, and RBS / Sorbet types.
