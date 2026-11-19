@@ -1,0 +1,36 @@
+inherit_from: ../../.rubocop.yml
+
+# The engine stands on its own: plain Active Record, no ApplicationRecord, and one shared fixture graph.
+Rails/ApplicationRecord:
+  Enabled: false
+
+RSpec/MultipleMemoizedHelpers:
+  Exclude:
+    - spec/**/*
+
+RSpec/LetSetup:
+  Exclude:
+    - spec/**/*
+
+# The fixture graph's models live in one file.
+Style/OneClassPerFile:
+  Exclude:
+    - spec/support/graph_fixtures.rb
+
+# The compiler and the pattern parser branch on every shape a step or token can take; splitting them further would
+# scatter one SQL statement across files.
+Metrics/ClassLength:
+  Max: 200
+Metrics/CyclomaticComplexity:
+  Max: 12
+Metrics/PerceivedComplexity:
+  Max: 12
+Metrics/AbcSize:
+  Max: 36
+Metrics/ParameterLists:
+  Max: 9
+Metrics/BlockLength:
+  AllowedMethods: [class_methods]
+Metrics/MethodLength:
+  Exclude:
+    - spec/**/*
