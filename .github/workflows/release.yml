@@ -52,7 +52,17 @@ jobs:
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
       # Trusted publishing, with this repository's RubyGems owner asserted: a pending trusted publisher only lets the
       # first push create the gem when the exchange names the account that set it up (rickmark, id 81513).
+      - name: Already on RubyGems?
+        id: published
+        run: |
+          version=${TAG#v}
+          if curl -sSf "https://rubygems.org/api/v2/rubygems/graph_query/versions/$version.json" > /dev/null; then
+            echo "graph_query $version is already published"; echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
       - name: RubyGems credentials
+        if: steps.published.outputs.done != 'true'
         env:
           RUBYGEMS_OWNER: '81513'
         run: |
@@ -64,10 +74,15 @@ jobs:
           echo "::add-mask::$key"
           echo "GEM_HOST_API_KEY=$key" >> "$GITHUB_ENV"
       - uses: rubygems/release-gem@v1
+        if: steps.published.outputs.done != 'true'
         with:
           setup-trusted-publisher: 'false'
       - name: GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.tag.outputs.tag }}
-        run: gh release create "$TAG" pkg/*.gem --title "$TAG" --notes-file <(ruby -e 'print File.read("CHANGELOG.md")[/^## #{ARGV[0].delete_prefix("v")}.*?(?=^## |\z)/m]' "$TAG")
+        run: |
+          gh release view "$TAG" > /dev/null 2>&1 && { echo "release $TAG exists"; exit 0; }
+          mkdir -p pkg; test -n "$(ls pkg/*.gem 2>/dev/null)" || gem build graph_query.gemspec --output "pkg/graph_query-${TAG#v}.gem"
+          ruby -e 'print File.read("CHANGELOG.md")[/^## #{ARGV[0].delete_prefix("v")} .*?(?=^## |\z)/m]' "$TAG" > notes.md
+          gh release create "$TAG" pkg/*.gem --title "$TAG" --notes-file notes.md
